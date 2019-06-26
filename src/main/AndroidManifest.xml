@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="me.qiwu.MusicNotification">
+    package="notxx.NevolutionXposed">
 
     <application
         android:allowBackup="true"

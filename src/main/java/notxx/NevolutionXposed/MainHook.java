@@ -1,4 +1,4 @@
-package me.qiwu.MusicNotification;
+package notxx.NevolutionXposed;
 
 
 import de.robv.android.xposed.IXposedHookLoadPackage;

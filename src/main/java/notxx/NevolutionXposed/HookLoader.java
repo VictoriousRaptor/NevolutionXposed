@@ -1,4 +1,4 @@
-package me.qiwu.MusicNotification;
+package notxx.NevolutionXposed;
 
 import android.app.Application;
 import android.content.Context;
