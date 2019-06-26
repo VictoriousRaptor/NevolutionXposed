@@ -1,10 +1,13 @@
 package notxx.NevolutionXposed;
 
+import android.app.Application;
 import android.app.AndroidAppHelper;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.content.res.TypedArray;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -16,6 +19,8 @@ import android.text.TextUtils;
 import android.view.View;
 import android.widget.RemoteViews;
 
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.List;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -29,8 +34,24 @@ import de.robv.android.xposed.XposedHelpers;
 
 public class NotificationHook {
 
-    public void init(){
-        XposedHelpers.findAndHookMethod(Notification.Builder.class, "build", new XC_MethodHook() {
+    public void init() {
+		final AtomicReference<Application> ref = new AtomicReference<>();
+
+        XposedHelpers.findAndHookMethod(Application.class, "onCreate", new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+				Application app = (Application)param.thisObject;
+				if (ref.compareAndSet(null, app)) {
+					XposedBridge.log("app: " + app);
+					Context context = app.getApplicationContext();
+					PackageManager packageManager = context.getPackageManager();
+					Intent intent = new Intent("com.oasisfeng.nevo.Decorator");
+					List<ResolveInfo> resolveInfos = packageManager.queryIntentServices(intent, 0);
+					XposedBridge.log("resolveInfos: " + resolveInfos);
+				}
+			}
+        });
+		XposedHelpers.findAndHookMethod(Notification.Builder.class, "build", new XC_MethodHook() {
 
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
