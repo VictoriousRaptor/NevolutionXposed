@@ -33,6 +33,7 @@ import de.robv.android.xposed.XposedHelpers;
  */
 
 public class NotificationHook {
+	private static final String HOST = "com.android.settings";
 
     public void init() {
 		final AtomicReference<Application> ref = new AtomicReference<>();
@@ -41,6 +42,7 @@ public class NotificationHook {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
 				Application app = (Application)param.thisObject;
+				if (!HOST.equals(app.getProcessName())) return;
 				if (ref.compareAndSet(null, app)) {
 					XposedBridge.log("app: " + app);
 					Context context = app.getApplicationContext();
