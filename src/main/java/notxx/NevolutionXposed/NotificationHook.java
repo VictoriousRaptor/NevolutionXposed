@@ -38,21 +38,6 @@ public class NotificationHook {
     public void init() {
 		final AtomicReference<Application> ref = new AtomicReference<>();
 
-        XposedHelpers.findAndHookMethod(Application.class, "onCreate", new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-				Application app = (Application)param.thisObject;
-				if (!HOST.equals(app.getProcessName())) return;
-				if (ref.compareAndSet(null, app)) {
-					XposedBridge.log("app: " + app);
-					Context context = app.getApplicationContext();
-					PackageManager packageManager = context.getPackageManager();
-					Intent intent = new Intent("com.oasisfeng.nevo.Decorator");
-					List<ResolveInfo> resolveInfos = packageManager.queryIntentServices(intent, 0);
-					XposedBridge.log("resolveInfos: " + resolveInfos);
-				}
-			}
-        });
 		XposedHelpers.findAndHookMethod(Notification.Builder.class, "build", new XC_MethodHook() {
 
             @Override
