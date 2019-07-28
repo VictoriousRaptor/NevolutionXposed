@@ -1,7 +1,11 @@
 package com.oasisfeng.nevo.sdk;
 
+import android.content.Context;
+
 import android.service.notification.StatusBarNotification;
 import android.support.annotation.Keep;
+
+import notxx.NevolutionXposed.App;
 
 public abstract class NevoDecoratorService {
 	/** Valid constant values for {@link android.app.Notification#EXTRA_TEMPLATE} */
@@ -11,8 +15,19 @@ public abstract class NevoDecoratorService {
 	public static final String TEMPLATE_MEDIA		= "android.app.Notification$MediaStyle";
 	public static final String TEMPLATE_MESSAGING	= "android.app.Notification$MessagingStyle";
 
+	private static volatile Context appContext;
+
+	protected static Context getAppContext() {
+		return appContext;
+	}
+
+	public static void setAppContext(Context context) {
+		appContext = context;
+	}
+
 	public void callApply(final StatusBarNotification sbn) {
 		apply(sbn);
 	}
+	
 	@Keep protected void apply(final StatusBarNotification evolving) {}
 }

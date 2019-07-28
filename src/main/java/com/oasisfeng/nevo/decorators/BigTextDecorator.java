@@ -19,6 +19,7 @@ package com.oasisfeng.nevo.decorators;
 import android.app.Notification;
 import android.os.Bundle;
 import android.service.notification.StatusBarNotification;
+import android.util.Log;
 
 import com.oasisfeng.nevo.sdk.NevoDecoratorService;
 
@@ -35,6 +36,7 @@ public class BigTextDecorator extends NevoDecoratorService {
 		final Bundle extras = n.extras;
 		final CharSequence text = extras.getCharSequence(Notification.EXTRA_TEXT);
 		if (text == null) return;
+		Log.d("BigText", "context = " + getAppContext() + ", text " + text);
 
 		extras.putCharSequence(Notification.EXTRA_TITLE_BIG, extras.getCharSequence(Notification.EXTRA_TITLE));
 		extras.putCharSequence(Notification.EXTRA_BIG_TEXT, text);
