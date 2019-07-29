@@ -1,9 +1,7 @@
 <resources>
 	<string name="app_name">NevolutionXposed</string>
-	<string name="service_running_channel_name">NevolutionXposed Running</string>
-	<string name="service_running_channel_desc">NevolutionXposed Background Running Channel</string>
-	<string name="service_running_title">NevolutionXposed</string>
-	<string name="service_running_text">NevolutionXposed Background Running</string>
+
+	<!-- decorators-misc -->
 
 	<string name="decorators_misc_label">Nevo - Misc</string>
 
@@ -21,4 +19,33 @@
 	<string name="no_sticky_prompt_title">Hide sticky notification?</string>
 	<string name="no_sticky_prompt_sub_text">Click to hide</string>
 	<string name="no_sticky_toast">Notification is hidden until next boot.</string>
+
+	<!-- decorator-wechat -->
+
+    <string name="decorator_wechat_label">女娲石 - 即时通信增强（支持微信通知）</string>
+    <string name="decorator_wechat_title">微信通知增强</string>
+    <string name="decorator_wechat_description">符合当代 Android 的最佳通知体验：可展开的会话样式、直接回复、划除即已读等高级特性。</string>
+    <string name="self_display_name">你</string>
+    <string name="action_reply">回复</string>
+    <string name="action_preview_image">预览图片</string>
+
+    <string name="channel_message">新消息通知</string>
+    <string name="channel_group_message">新群组消息通知</string>
+    <string name="channel_misc">其它通知</string>
+
+    <!-- Settings -->
+
+    <string name="pref_activate_title">启用</string>
+    <string name="pref_activate_summary_wechat_not_installed">“微信”未安装</string>
+    <string name="pref_activate_summary_nevo_not_installed">“女娲石”尚未安装</string>
+    <string name="pref_activate_summary_already_activated">已启用</string>
+    <string name="pref_extension_title">扩展包</string>
+    <string name="pref_extension_summary">添加更多特性（快捷回复、划掉标记已读 等）</string>
+    <string name="pref_extension_summary_auto">需要安装“Android Auto”以支持更多特性（快捷回复、划掉标记已读 等）</string>
+    <string name="pref_extension_summary_installed">已安装</string>
+    <string name="pref_mention_action_title">添加 @提及 式快捷回复</string>
+    <string name="pref_mention_action_summary">额外的快捷回复操作，提及群聊中的最后发言者。\n注意，受接口限制，这 *不会* 像在聊天界面中的提及动作那样触发对方的提醒。</string>
+    <string name="pref_wear_title">Wear OS (实验性)</string>
+    <string name="pref_wear_summary">同步通知至 Wear OS 设备</string>
+    <string name="pref_version_title">版本</string>
 </resources>

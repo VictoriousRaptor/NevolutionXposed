@@ -4,7 +4,7 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.Icon;
-import android.support.v4.util.LruCache;
+import android.util.LruCache;
 
 import top.trumeet.common.utils.ImgUtils;
 

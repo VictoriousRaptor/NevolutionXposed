@@ -3,9 +3,7 @@ package com.oasisfeng.nevo.sdk;
 import android.content.Context;
 
 import android.service.notification.StatusBarNotification;
-import android.support.annotation.Keep;
-
-import notxx.NevolutionXposed.App;
+import androidx.annotation.Keep;
 
 public abstract class NevoDecoratorService {
 	/** Valid constant values for {@link android.app.Notification#EXTRA_TEMPLATE} */

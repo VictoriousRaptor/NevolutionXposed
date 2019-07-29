@@ -1,6 +1,6 @@
 package top.trumeet.common.cache;
 
-import android.support.v4.util.LruCache;
+import android.util.LruCache;
 
 /**
  * @author zts
