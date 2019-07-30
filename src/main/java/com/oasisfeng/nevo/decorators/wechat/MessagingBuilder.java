@@ -190,16 +190,17 @@ class MessagingBuilder {
 			final Action.Builder reply_action = new Action.Builder(null, mContext.getString(R.string.action_reply), proxy)
 					.addRemoteInput(reply_remote_input.build()).setAllowGeneratedReplies(true);
 			if (SDK_INT >= P) reply_action.setSemanticAction(Action.SEMANTIC_ACTION_REPLY);
-			n.addAction(reply_action.build());
+			WeChatDecorator.addAction(n, reply_action.build());
 
-			if (conversation.isGroupChat() && mPreferences.getBoolean(mPrefKeyMentionAction, false)) {
-				final Person last_sender = messages[messages.length - 1].getPerson();
-				if (last_sender != null && last_sender != mUserSelf) {
-					final String label = "@" + last_sender.getName(), prefix = "@" + Conversation.getOriginalName(last_sender) + MENTION_SEPARATOR;
-					n.addAction(new Action.Builder(null, label, proxyDirectReply(sbn, on_reply, remote_input, input_history, prefix))
-							.addRemoteInput(reply_remote_input.setLabel(label).build()).setAllowGeneratedReplies(true).build());
-				}
-			}
+			// at and reply
+			// if (conversation.isGroupChat() && mPreferences.getBoolean(mPrefKeyMentionAction, false)) {
+			// 	final Person last_sender = messages[messages.length - 1].getPerson();
+			// 	if (last_sender != null && last_sender != mUserSelf) {
+			// 		final String label = "@" + last_sender.getName(), prefix = "@" + Conversation.getOriginalName(last_sender) + MENTION_SEPARATOR;
+			// 		n.addAction(new Action.Builder(null, label, proxyDirectReply(sbn, on_reply, remote_input, input_history, prefix))
+			// 				.addRemoteInput(reply_remote_input.setLabel(label).build()).setAllowGeneratedReplies(true).build());
+			// 	}
+			// }
 		}
 		return messaging;
 	}
@@ -256,7 +257,7 @@ class MessagingBuilder {
 										   final @Nullable CharSequence[] input_history, final @Nullable String mention_prefix) {
 		final Intent proxy = new Intent(mention_prefix != null ? ACTION_MENTION : ACTION_REPLY)		// Separate action to avoid PendingIntent overwrite.
 				.putExtra(EXTRA_REPLY_ACTION, on_reply).putExtra(EXTRA_RESULT_KEY, remote_input.getResultKey())
-				.setData(Uri.fromParts(SCHEME_KEY, sbn.getKey(), null)).putExtra(EXTRA_ORIGINAL_KEY, sbn.getOriginalKey());
+				.setData(Uri.fromParts(SCHEME_KEY, sbn.getKey(), null)).putExtra(EXTRA_ORIGINAL_KEY, WeChatDecorator.getOriginalKey(sbn));
 		if (mention_prefix != null) proxy.putExtra(EXTRA_REPLY_PREFIX, mention_prefix);
 		if (SDK_INT >= N && input_history != null)
 			proxy.putCharSequenceArrayListExtra(EXTRA_REMOTE_INPUT_HISTORY, new ArrayList<>(Arrays.asList(input_history)));

@@ -20,6 +20,7 @@ public class MainHook implements IXposedHookLoadPackage {
 		new com.oasisfeng.nevo.decorators.BigTextDecorator(),
 		new com.notxx.miui.MIUIDecorator()
 	};
+	private final NevoDecoratorService wechat = new com.oasisfeng.nevo.decorators.wechat.WeChatDecorator();
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam loadPackageParam) throws Throwable {
@@ -32,6 +33,7 @@ public class MainHook implements IXposedHookLoadPackage {
 					protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
 						StatusBarNotification sbn = (StatusBarNotification)param.args[0];
 						int importance = (int)param.args[1];
+						Log.d("MainHook", "thread: " + java.lang.Thread.currentThread());
 						apply(sbn, importance);
 					}
 				});
@@ -52,7 +54,11 @@ public class MainHook implements IXposedHookLoadPackage {
 	}
 
 	private void apply(StatusBarNotification sbn, int importance) {
-		for (NevoDecoratorService srv : services)
-			srv.callApply(sbn);
+		if ("com.tencent.mm".equals(sbn.getPackageName())) {
+			wechat.apply(sbn);
+		} else {
+			for (NevoDecoratorService srv : services)
+				srv.apply(sbn);
+		}
 	}
 }

@@ -52,14 +52,14 @@ public class WeChatDecoratorSettingsActivity extends PreferenceActivity {
 
 		@SuppressWarnings("deprecation") final Preference preference_activate = findPreference(getString(R.string.pref_activate));
 		boolean nevolution_installed = false, wechat_installed = false, running = false;
-		try {
-			getPackageManager().getApplicationInfo(NEVOLUTION_PACKAGE, 0);
-			nevolution_installed = true;
-			getPackageManager().getApplicationInfo(WECHAT_PACKAGE, PackageManager.GET_UNINSTALLED_PACKAGES);
-			wechat_installed = true;
-			final Intent service = new Intent(this, WeChatDecorator.class).setAction(NevoDecoratorService.ACTION_DECORATOR_SERVICE);
-			running = mDummyReceiver.peekService(this, service) != null;
-		} catch (final PackageManager.NameNotFoundException ignored) {}
+		// try {
+		// 	getPackageManager().getApplicationInfo(NEVOLUTION_PACKAGE, 0);
+		// 	nevolution_installed = true;
+		// 	getPackageManager().getApplicationInfo(WECHAT_PACKAGE, PackageManager.GET_UNINSTALLED_PACKAGES);
+		// 	wechat_installed = true;
+		// 	final Intent service = new Intent(this, WeChatDecorator.class).setAction(NevoDecoratorService.ACTION_DECORATOR_SERVICE);
+		// 	running = mDummyReceiver.peekService(this, service) != null;
+		// } catch (final PackageManager.NameNotFoundException ignored) {}
 
 		preference_activate.setEnabled(! nevolution_installed || wechat_installed);		// No reason to promote WeChat if not installed.
 		preference_activate.setSelectable(! running);

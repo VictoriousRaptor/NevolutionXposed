@@ -17,6 +17,7 @@
 package com.oasisfeng.nevo.decorators.wechat;
 
 import android.app.Notification;
+import android.app.Notification.Action;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.BroadcastReceiver;
@@ -39,8 +40,11 @@ import android.util.Log;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedList;
+import java.util.Map;
 import java.util.List;
 import java.util.Optional;
+import java.util.WeakHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -62,6 +66,9 @@ import static android.service.notification.NotificationListenerService.REASON_CH
 import com.oasisfeng.nevo.decorators.wechat.ConversationManager.Conversation;
 import com.oasisfeng.nevo.sdk.NevoDecoratorService;
 
+import de.robv.android.xposed.XposedHelpers;
+
+import notxx.NevolutionXposed.BuildConfig;
 import notxx.NevolutionXposed.R;
 
 /**
@@ -89,7 +96,17 @@ public class WeChatDecorator extends NevoDecoratorService {
 	static final String ACTION_DEBUG_NOTIFICATION = "DEBUG";
 	private static final String KEY_SILENT_REVIVAL = "nevo.wechat.revival";
 
-	@Override protected void apply(final StatusBarNotification evolving) {
+	@Override public void apply(final StatusBarNotification evolving) {
+		final String key = evolving.getKey();
+		setOriginalKey(evolving, key);
+		LinkedList<StatusBarNotification> queue = map.get(key);
+		if (queue == null) {
+			queue = new LinkedList<>();
+			map.put(key, queue);
+		}
+		queue.add(evolving);
+		if (queue.size() > MAX_NUM_ARCHIVED) queue.remove();
+
 		final Notification n = evolving.getNotification();
 		final Bundle extras = n.extras;
 		final Context context = getAppContext();
@@ -112,7 +129,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 			} else Log.d(TAG, "Skip further process for non-conversation notification: " + title);    // E.g. web login confirmation notification.
 			return;
 		} else if (n.tickerText == null) {		// Legacy misc. notifications.
-			if (SDK_INT >= O && channel_id == null) n.setChannelId(CHANNEL_MISC);
+			if (SDK_INT >= O && channel_id == null) setChannelId(n, CHANNEL_MISC);
 			Matcher matcher = pattern.matcher(content_text);
 			if (matcher.matches()) {
 				// 撤回
@@ -132,9 +149,9 @@ public class WeChatDecorator extends NevoDecoratorService {
 		final Conversation conversation;
 		if (! isDistinctId(n, pkg)) {
 			final int title_hash = title.hashCode();	// Not using the hash code of original title, which might have already evolved.
-			evolving.setId(title_hash);
+			setId(evolving, title_hash);
 			conversation = mConversationManager.getConversation(title_hash);
-		} else conversation = mConversationManager.getConversation(evolving.getOriginalId());
+		} else conversation = mConversationManager.getConversation(getOriginalId(evolving));
 
 		conversation.setTitle(title);
 		conversation.summary = content_text;
@@ -148,19 +165,19 @@ public class WeChatDecorator extends NevoDecoratorService {
 
 		extras.putBoolean(Notification.EXTRA_SHOW_WHEN, true);
 		if (mPreferences.getBoolean(mPrefKeyWear, false)) n.flags &= ~ Notification.FLAG_LOCAL_ONLY;
-		n.setSortKey(String.valueOf(Long.MAX_VALUE - n.when + (is_group_chat ? GROUP_CHAT_SORT_KEY_SHIFT : 0))); // Place group chat below other messages
+		setSortKey(n, String.valueOf(Long.MAX_VALUE - n.when + (is_group_chat ? GROUP_CHAT_SORT_KEY_SHIFT : 0))); // Place group chat below other messages
 		if (SDK_INT >= O) {
 			if (extras.containsKey(KEY_SILENT_REVIVAL)) {
-				n.setGroup("nevo.group.auto");	// Special group name to let Nevolution auto-group it as if not yet grouped. (To be standardized in SDK)
-				n.setGroupAlertBehavior(Notification.GROUP_ALERT_SUMMARY);		// This trick makes notification silent
+				setGroup(n,"nevo.group.auto");	// Special group name to let Nevolution auto-group it as if not yet grouped. (To be standardized in SDK)
+				setGroupAlertBehavior(n, Notification.GROUP_ALERT_SUMMARY);		// This trick makes notification silent
 			}
-			if (is_group_chat && ! CHANNEL_DND.equals(channel_id)) n.setChannelId(CHANNEL_GROUP_CONVERSATION);
-			else if (channel_id == null) n.setChannelId(CHANNEL_MESSAGE);		// WeChat versions targeting O+ have its own channel for message
+			if (is_group_chat && ! CHANNEL_DND.equals(channel_id)) setChannelId(n, CHANNEL_GROUP_CONVERSATION);
+			else if (channel_id == null) setChannelId(n, CHANNEL_MESSAGE);		// WeChat versions targeting O+ have its own channel for message
 		}
 
-		MessagingStyle messaging = mMessagingBuilder.buildFromExtender(conversation, evolving, title, getArchivedNotifications(evolving.getOriginalKey(), MAX_NUM_ARCHIVED)); // build message from android auto
+		MessagingStyle messaging = mMessagingBuilder.buildFromExtender(conversation, evolving, title, getArchivedNotifications(getOriginalKey(evolving), MAX_NUM_ARCHIVED)); // build message from android auto
 		if (messaging == null)	// EXTRA_TEXT will be written in buildFromArchive()
-			messaging = mMessagingBuilder.buildFromArchive(conversation, n, title, getArchivedNotifications(evolving.getOriginalKey(), MAX_NUM_ARCHIVED));
+			messaging = mMessagingBuilder.buildFromArchive(conversation, n, title, getArchivedNotifications(getOriginalKey(evolving), MAX_NUM_ARCHIVED));
 		if (messaging == null) return;
 		final List<MessagingStyle.Message> messages = messaging.getMessages();
 		if (messages.isEmpty()) return;
@@ -189,21 +206,21 @@ public class WeChatDecorator extends NevoDecoratorService {
 	}
 	private Boolean mDistinctIdSupported;
 
-	@Override protected void onNotificationRemoved(final StatusBarNotification notification, final int reason) {
-		Log.d(TAG, "onNotificationRemoved(" + notification + ", " + reason + ")");
-	}
+	// @Override protected void onNotificationRemoved(final StatusBarNotification notification, final int reason) {
+	// 	Log.d(TAG, "onNotificationRemoved(" + notification + ", " + reason + ")");
+	// }
 
-	@Override protected void onNotificationRemoved(final String key, final int reason) {
-		Log.d(TAG, "onNotificationRemoved(" + key + ", " + reason + ")");
-		if (reason == REASON_APP_CANCEL) {		// Only if "Removal-Aware" of Nevolution is activated
-			Log.d(TAG, "Cancel notification: " + key);
-			// TODO cancelNotification(key);	// Will cancel all notifications evolved from this original key, thus trigger the "else" branch below
-		} else if (reason == REASON_CHANNEL_BANNED) {	// In case WeChat deleted our notification channel for group conversation in Insider delivery mode
-			mHandler.post(() -> reviveNotificationAfterChannelDeletion(key));
-		} else if (SDK_INT < O || reason == REASON_CANCEL) {	// Exclude the removal request by us in above case. (Removal-Aware is only supported on Android 8+)
-			mMessagingBuilder.markRead(key);
-		}
-	}
+	// @Override protected void onNotificationRemoved(final String key, final int reason) {
+	// 	Log.d(TAG, "onNotificationRemoved(" + key + ", " + reason + ")");
+	// 	if (reason == REASON_APP_CANCEL) {		// Only if "Removal-Aware" of Nevolution is activated
+	// 		Log.d(TAG, "Cancel notification: " + key);
+	// 		// TODO cancelNotification(key);	// Will cancel all notifications evolved from this original key, thus trigger the "else" branch below
+	// 	} else if (reason == REASON_CHANNEL_BANNED) {	// In case WeChat deleted our notification channel for group conversation in Insider delivery mode
+	// 		mHandler.post(() -> reviveNotificationAfterChannelDeletion(key));
+	// 	} else if (SDK_INT < O || reason == REASON_CANCEL) {	// Exclude the removal request by us in above case. (Removal-Aware is only supported on Android 8+)
+	// 		mMessagingBuilder.markRead(key);
+	// 	}
+	// }
 
 	private void reviveNotificationAfterChannelDeletion(final String key) {
 		Log.d(TAG, ("Revive silently: ") + key);
@@ -212,47 +229,47 @@ public class WeChatDecorator extends NevoDecoratorService {
 		// TODO recastNotification(key, addition);
 	}
 
-	@Override protected void onConnected() {
-		if (SDK_INT >= O) {
-			mWeChatTargetingO = isWeChatTargeting26OrAbove();
-			final List<NotificationChannel> channels = new ArrayList<>();
-			channels.add(makeChannel(CHANNEL_GROUP_CONVERSATION, R.string.channel_group_message, false));
-			// WeChat versions targeting O+ have its own channels for message and misc
-			channels.add(migrate(OLD_CHANNEL_MESSAGE,	CHANNEL_MESSAGE,	R.string.channel_message, false));
-			channels.add(migrate(OLD_CHANNEL_MISC,		CHANNEL_MISC,		R.string.channel_misc, true));
-			createNotificationChannels(WECHAT_PACKAGE, Process.myUserHandle(), channels);
-		}
-	}
+	// @Override protected void onConnected() {
+	// 	if (SDK_INT >= O) {
+	// 		mWeChatTargetingO = isWeChatTargeting26OrAbove();
+	// 		final List<NotificationChannel> channels = new ArrayList<>();
+	// 		channels.add(makeChannel(CHANNEL_GROUP_CONVERSATION, R.string.channel_group_message, false));
+	// 		// WeChat versions targeting O+ have its own channels for message and misc
+	// 		channels.add(migrate(OLD_CHANNEL_MESSAGE,	CHANNEL_MESSAGE,	R.string.channel_message, false));
+	// 		channels.add(migrate(OLD_CHANNEL_MISC,		CHANNEL_MISC,		R.string.channel_misc, true));
+	// 		createNotificationChannels(WECHAT_PACKAGE, Process.myUserHandle(), channels);
+	// 	}
+	// }
 
-	@RequiresApi(O) private NotificationChannel migrate(final String old_id, final String new_id, final @StringRes int new_name, final boolean silent) {
-		final NotificationChannel channel_message = getNotificationChannel(WECHAT_PACKAGE, Process.myUserHandle(), old_id);
-		deleteNotificationChannel(WECHAT_PACKAGE, Process.myUserHandle(), old_id);
-		if (channel_message != null) return cloneChannel(channel_message, new_id, new_name);
-		else return makeChannel(new_id, new_name, silent);
-	}
+	// @RequiresApi(O) private NotificationChannel migrate(final String old_id, final String new_id, final @StringRes int new_name, final boolean silent) {
+	// 	final NotificationChannel channel_message = getNotificationChannel(WECHAT_PACKAGE, Process.myUserHandle(), old_id);
+	// 	deleteNotificationChannel(WECHAT_PACKAGE, Process.myUserHandle(), old_id);
+	// 	if (channel_message != null) return cloneChannel(channel_message, new_id, new_name);
+	// 	else return makeChannel(new_id, new_name, silent);
+	// }
 
-	@RequiresApi(O) private NotificationChannel makeChannel(final String channel_id, final @StringRes int name, final boolean silent) {
-		final NotificationChannel channel = new NotificationChannel(channel_id, getString(name), NotificationManager.IMPORTANCE_HIGH/* Allow heads-up (by default) */);
-		if (silent) channel.setSound(null, null);
-		else channel.setSound(getDefaultSound(), new AudioAttributes.Builder().setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-				.setUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_INSTANT).build());
-		channel.enableLights(true);
-		channel.setLightColor(LIGHT_COLOR);
-		return channel;
-	}
+	// @RequiresApi(O) private NotificationChannel makeChannel(final String channel_id, final @StringRes int name, final boolean silent) {
+	// 	final NotificationChannel channel = new NotificationChannel(channel_id, getString(name), NotificationManager.IMPORTANCE_HIGH/* Allow heads-up (by default) */);
+	// 	if (silent) channel.setSound(null, null);
+	// 	else channel.setSound(getDefaultSound(), new AudioAttributes.Builder().setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+	// 			.setUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_INSTANT).build());
+	// 	channel.enableLights(true);
+	// 	channel.setLightColor(LIGHT_COLOR);
+	// 	return channel;
+	// }
 
-	@RequiresApi(O) private NotificationChannel cloneChannel(final NotificationChannel channel, final String id, final int new_name) {
-		final NotificationChannel clone = new NotificationChannel(id, getString(new_name), channel.getImportance());
-		clone.setGroup(channel.getGroup());
-		clone.setDescription(channel.getDescription());
-		clone.setLockscreenVisibility(channel.getLockscreenVisibility());
-		clone.setSound(Optional.ofNullable(channel.getSound()).orElse(getDefaultSound()), channel.getAudioAttributes());
-		clone.setBypassDnd(channel.canBypassDnd());
-		clone.setLightColor(channel.getLightColor());
-		clone.setShowBadge(channel.canShowBadge());
-		clone.setVibrationPattern(channel.getVibrationPattern());
-		return clone;
-	}
+	// @RequiresApi(O) private NotificationChannel cloneChannel(final NotificationChannel channel, final String id, final int new_name) {
+	// 	final NotificationChannel clone = new NotificationChannel(id, getString(new_name), channel.getImportance());
+	// 	clone.setGroup(channel.getGroup());
+	// 	clone.setDescription(channel.getDescription());
+	// 	clone.setLockscreenVisibility(channel.getLockscreenVisibility());
+	// 	clone.setSound(Optional.ofNullable(channel.getSound()).orElse(getDefaultSound()), channel.getAudioAttributes());
+	// 	clone.setBypassDnd(channel.canBypassDnd());
+	// 	clone.setLightColor(channel.getLightColor());
+	// 	clone.setShowBadge(channel.canShowBadge());
+	// 	clone.setVibrationPattern(channel.getVibrationPattern());
+	// 	return clone;
+	// }
 
 	@Nullable private Uri getDefaultSound() {	// Before targeting O, WeChat actually plays sound by itself (not via Notification).
 		return mWeChatTargetingO ? Settings.System.DEFAULT_NOTIFICATION_URI : null;
@@ -266,58 +283,60 @@ public class WeChatDecorator extends NevoDecoratorService {
 		}
 	}
 
-	@Override public void onCreate() {
-		super.onCreate();
-		loadPreferences();
-		mPrefKeyWear = getString(R.string.pref_wear);
+	// @Override public void onCreate() {
+	// 	super.onCreate();
+	// 	loadPreferences();
+	// 	mPrefKeyWear = getString(R.string.pref_wear);
 
-		mMessagingBuilder = new MessagingBuilder(this, mPreferences, this::recastNotification);		// Must be called after loadPreferences().
-		final IntentFilter filter = new IntentFilter(Intent.ACTION_PACKAGE_REMOVED); filter.addDataScheme("package");
-		registerReceiver(mPackageEventReceiver, filter);
-		registerReceiver(mSettingsChangedReceiver, new IntentFilter(ACTION_SETTINGS_CHANGED));
-	}
+	// 	mMessagingBuilder = new MessagingBuilder(this, mPreferences, this::recastNotification);		// Must be called after loadPreferences().
+	// 	final IntentFilter filter = new IntentFilter(Intent.ACTION_PACKAGE_REMOVED); filter.addDataScheme("package");
+	// 	registerReceiver(mPackageEventReceiver, filter);
+	// 	registerReceiver(mSettingsChangedReceiver, new IntentFilter(ACTION_SETTINGS_CHANGED));
+	// }
 
-	@Override public void onDestroy() {
-		unregisterReceiver(mSettingsChangedReceiver);
-		unregisterReceiver(mPackageEventReceiver);
-		mMessagingBuilder.close();
-		super.onDestroy();
-	}
+	// @Override public void onDestroy() {
+	// 	unregisterReceiver(mSettingsChangedReceiver);
+	// 	unregisterReceiver(mPackageEventReceiver);
+	// 	mMessagingBuilder.close();
+	// 	super.onDestroy();
+	// }
 
-	@Override public int onStartCommand(final Intent intent, final int flags, final int startId) {
-		String tag = null; int id = 0;
-		if (SDK_INT >= O && BuildConfig.DEBUG && ACTION_DEBUG_NOTIFICATION.equals(intent.getAction())) try {
-			tag = intent.getStringExtra(Notification.EXTRA_NOTIFICATION_TAG);
-			id = intent.getIntExtra(Notification.EXTRA_NOTIFICATION_ID, 0);
-			@SuppressWarnings("deprecation") final String key = new StatusBarNotification(WECHAT_PACKAGE, null, id, tag, getPackageManager()
-					.getPackageUid(WECHAT_PACKAGE, 0), 0, 0, new Notification(), Process.myUserHandle(), 0).getKey();
-			final StatusBarNotification sbn = getLatestNotifications(Collections.singletonList(key)).get(0);
-			final Notification n = sbn.getNotification();
-			final Notification.CarExtender.UnreadConversation conversation = new Notification.CarExtender(n).getUnreadConversation();
-			if (conversation != null) {
-				final String[] lines = Arrays.copyOf(conversation.getMessages(), conversation.getMessages().length + 2);
-				final long t = conversation.getLatestTimestamp();
-				lines[lines.length - 2] = "TS:" + (t == 0 ? "00" : t - n.when) + ",P:" + conversation.getParticipant();
-				lines[lines.length - 1] = n.tickerText != null ? n.tickerText.toString() : null;
-				n.extras.putCharSequenceArray(Notification.EXTRA_TEXT_LINES, lines);
-				n.extras.putString(Notification.EXTRA_TEMPLATE, Notification.InboxStyle.class.getName());
-			} else {
-				if (n.tickerText != null) n.extras.putCharSequence(Notification.EXTRA_BIG_TEXT, n.extras.getCharSequence(EXTRA_TEXT) + "\n" + n.tickerText);
-				n.extras.putString(Notification.EXTRA_TEMPLATE, Notification.BigTextStyle.class.getName());
-			}
-			final NotificationManager nm = getSystemService(NotificationManager.class);
-			nm.createNotificationChannel(new NotificationChannel(n.getChannelId(), "Debug:" + n.getChannelId(), NotificationManager.IMPORTANCE_LOW));
-			nm.notify(tag, id, n);
-		} catch (final PackageManager.NameNotFoundException | RuntimeException e) {
-			Log.e(TAG, "Error debugging notification, id=" + id + ", tag=" + tag, e);
-		}
-		return START_NOT_STICKY;
-	}
+	// @Override public int onStartCommand(final Intent intent, final int flags, final int startId) {
+	// 	String tag = null; int id = 0;
+	// 	if (SDK_INT >= O && BuildConfig.DEBUG && ACTION_DEBUG_NOTIFICATION.equals(intent.getAction())) try {
+	// 		tag = intent.getStringExtra(Notification.EXTRA_NOTIFICATION_TAG);
+	// 		id = intent.getIntExtra(Notification.EXTRA_NOTIFICATION_ID, 0);
+	// 		@SuppressWarnings("deprecation") final String key = new StatusBarNotification(WECHAT_PACKAGE, null, id, tag, getPackageManager()
+	// 				.getPackageUid(WECHAT_PACKAGE, 0), 0, 0, new Notification(), Process.myUserHandle(), 0).getKey();
+	// 		final StatusBarNotification sbn = getLatestNotifications(Collections.singletonList(key)).get(0);
+	// 		final Notification n = sbn.getNotification();
+	// 		final Notification.CarExtender.UnreadConversation conversation = new Notification.CarExtender(n).getUnreadConversation();
+	// 		if (conversation != null) {
+	// 			final String[] lines = Arrays.copyOf(conversation.getMessages(), conversation.getMessages().length + 2);
+	// 			final long t = conversation.getLatestTimestamp();
+	// 			lines[lines.length - 2] = "TS:" + (t == 0 ? "00" : t - n.when) + ",P:" + conversation.getParticipant();
+	// 			lines[lines.length - 1] = n.tickerText != null ? n.tickerText.toString() : null;
+	// 			n.extras.putCharSequenceArray(Notification.EXTRA_TEXT_LINES, lines);
+	// 			n.extras.putString(Notification.EXTRA_TEMPLATE, Notification.InboxStyle.class.getName());
+	// 		} else {
+	// 			if (n.tickerText != null) n.extras.putCharSequence(Notification.EXTRA_BIG_TEXT, n.extras.getCharSequence(EXTRA_TEXT) + "\n" + n.tickerText);
+	// 			n.extras.putString(Notification.EXTRA_TEMPLATE, Notification.BigTextStyle.class.getName());
+	// 		}
+	// 		final NotificationManager nm = getSystemService(NotificationManager.class);
+	// 		nm.createNotificationChannel(new NotificationChannel(n.getChannelId(), "Debug:" + n.getChannelId(), NotificationManager.IMPORTANCE_LOW));
+	// 		nm.notify(tag, id, n);
+	// 	} catch (final PackageManager.NameNotFoundException | RuntimeException e) {
+	// 		Log.e(TAG, "Error debugging notification, id=" + id + ", tag=" + tag, e);
+	// 	}
+	// 	return START_NOT_STICKY;
+	// }
 
 	private void loadPreferences() {
-		final Context context = SDK_INT >= N ? createDeviceProtectedStorageContext() : this;
+		Context context = getAppContext();
+		if (SDK_INT >= N)
+			context = context.createDeviceProtectedStorageContext();
 		//noinspection deprecation
-		mPreferences = context.getSharedPreferences(getDefaultSharedPreferencesName(context), MODE_MULTI_PROCESS);
+		mPreferences = context.getSharedPreferences(getDefaultSharedPreferencesName(context), Context.MODE_MULTI_PROCESS);
 	}
 
 	private static String getDefaultSharedPreferencesName(final Context context) {
@@ -337,15 +356,56 @@ public class WeChatDecorator extends NevoDecoratorService {
 	private boolean mWeChatTargetingO;
 	private SharedPreferences mPreferences;
 	private String mPrefKeyWear;
-	private final Handler mHandler = new Handler();
+	// private final Handler mHandler = new Handler();
 
 	static final String TAG = "Nevo.Decorator[WeChat]";
 
-	private PackageManager getPackageManager() {
-		return getAppContext().getPackageManager();
+	private static final Map<String, LinkedList<StatusBarNotification>> map = new WeakHashMap<>();
+
+	public static List<StatusBarNotification> getArchivedNotifications(String key, int max) {
+		LinkedList<StatusBarNotification> queue = map.get(key);
+		return queue != null ? new ArrayList<>(queue) : new ArrayList<>();
 	}
 
-	private String getString(int key) {
-		return getAppContext().getString(key);
+	public static void setId(StatusBarNotification sbn, int id) {
+		final int originalId = sbn.getId();
+		setOriginalId(sbn, originalId);
+		XposedHelpers.setIntField(sbn, "id", id);
+	}
+
+	public static int getOriginalId(StatusBarNotification sbn) {
+		return (Integer)XposedHelpers.getAdditionalInstanceField(sbn, "originalId");
+	}
+
+	public static void setOriginalId(StatusBarNotification sbn, int id) {
+		XposedHelpers.setAdditionalInstanceField(sbn, "originalId", (Integer)id);
+	}
+
+	public static String getOriginalKey(StatusBarNotification sbn) {
+		return (String)XposedHelpers.getAdditionalInstanceField(sbn, "originalKey");
+	}
+
+	public static void setOriginalKey(StatusBarNotification sbn, String key) {
+		XposedHelpers.setAdditionalInstanceField(sbn, "originalKey", key);
+	}
+
+	public static void setChannelId(Notification n, String channelId) {
+		// TODO
+	}
+
+	public static void setGroup(Notification n, String group) {
+		// TODO
+	}
+
+	public static void setGroupAlertBehavior(Notification n, int behavior) {
+		// TODO
+	}
+
+	public static void setSortKey(Notification n, String key) {
+		// TODO
+	}
+
+	public static void addAction(Notification n, Action action) {
+		// TODO
 	}
 }

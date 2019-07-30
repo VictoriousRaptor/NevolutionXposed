@@ -30,7 +30,7 @@ public class MIUIDecorator extends NevoDecoratorService {
 	}
 
     @Override
-    protected void apply(StatusBarNotification evolving) {
+    public void apply(StatusBarNotification evolving) {
 		final Notification n = evolving.getNotification();
 		final Context context = getAppContext();
         Log.d(TAG, "begin modifying " + context);
