@@ -2,9 +2,11 @@ package com.oasisfeng.nevo.sdk;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
-
+import android.os.Bundle;
 import android.service.notification.StatusBarNotification;
+
 import androidx.annotation.Keep;
+import androidx.annotation.Nullable;
 
 public abstract class NevoDecoratorService {
 	/** Valid constant values for {@link android.app.Notification#EXTRA_TEMPLATE} */
@@ -32,5 +34,10 @@ public abstract class NevoDecoratorService {
 		return getAppContext().getString(key);
 	}
 
+	@Keep public void onCreate() {}
+	@Keep public void onDestroy() {}
+
 	@Keep public void apply(final StatusBarNotification evolving) {}
+
+	protected final void recastNotification(final String key, final @Nullable Bundle fillInExtras) {}
 }

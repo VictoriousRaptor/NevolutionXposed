@@ -98,7 +98,9 @@ public class WeChatDecorator extends NevoDecoratorService {
 
 	@Override public void apply(final StatusBarNotification evolving) {
 		final String key = evolving.getKey();
+		setOriginalId(evolving, evolving.getId());
 		setOriginalKey(evolving, key);
+		setOriginalTag(evolving, evolving.getTag());
 		LinkedList<StatusBarNotification> queue = map.get(key);
 		if (queue == null) {
 			queue = new LinkedList<>();
@@ -283,23 +285,23 @@ public class WeChatDecorator extends NevoDecoratorService {
 		}
 	}
 
-	// @Override public void onCreate() {
-	// 	super.onCreate();
-	// 	loadPreferences();
-	// 	mPrefKeyWear = getString(R.string.pref_wear);
+	@Override public void onCreate() {
+		super.onCreate();
+		loadPreferences();
+		mPrefKeyWear = getString(R.string.pref_wear);
 
-	// 	mMessagingBuilder = new MessagingBuilder(this, mPreferences, this::recastNotification);		// Must be called after loadPreferences().
-	// 	final IntentFilter filter = new IntentFilter(Intent.ACTION_PACKAGE_REMOVED); filter.addDataScheme("package");
-	// 	registerReceiver(mPackageEventReceiver, filter);
-	// 	registerReceiver(mSettingsChangedReceiver, new IntentFilter(ACTION_SETTINGS_CHANGED));
-	// }
+		mMessagingBuilder = new MessagingBuilder(getAppContext(), mPreferences, this::recastNotification);		// Must be called after loadPreferences().
+		final IntentFilter filter = new IntentFilter(Intent.ACTION_PACKAGE_REMOVED); filter.addDataScheme("package");
+		// registerReceiver(mPackageEventReceiver, filter);
+		// registerReceiver(mSettingsChangedReceiver, new IntentFilter(ACTION_SETTINGS_CHANGED));
+	}
 
-	// @Override public void onDestroy() {
+	@Override public void onDestroy() {
 	// 	unregisterReceiver(mSettingsChangedReceiver);
 	// 	unregisterReceiver(mPackageEventReceiver);
-	// 	mMessagingBuilder.close();
-	// 	super.onDestroy();
-	// }
+		mMessagingBuilder.close();
+		super.onDestroy();
+	}
 
 	// @Override public int onStartCommand(final Intent intent, final int flags, final int startId) {
 	// 	String tag = null; int id = 0;
@@ -387,6 +389,10 @@ public class WeChatDecorator extends NevoDecoratorService {
 
 	public static void setOriginalKey(StatusBarNotification sbn, String key) {
 		XposedHelpers.setAdditionalInstanceField(sbn, "originalKey", key);
+	}
+
+	public static void setOriginalTag(StatusBarNotification sbn, String tag) {
+		XposedHelpers.setAdditionalInstanceField(sbn, "originalTag", tag);
 	}
 
 	public static void setChannelId(Notification n, String channelId) {
