@@ -26,20 +26,28 @@ public class MainHook implements IXposedHookLoadPackage {
 	@Override
 	public void handleLoadPackage(XC_LoadPackage.LoadPackageParam loadPackageParam) throws Throwable {
 		if (!"com.android.systemui".equals(loadPackageParam.packageName)) return;
-		try {
-			final Class<?> clazz = XposedHelpers.findClass("com.android.systemui.statusbar.NotificationListener", loadPackageParam.classLoader);
-			XposedBridge.log("NS clazz: " + clazz + " " + loadPackageParam.packageName);
-			XposedBridge.hookAllMethods(clazz, "onNotificationPosted", new XC_MethodHook() {
+		final XC_MethodHook notifications = new XC_MethodHook() { // 实际抓通知的
 				@Override
 				protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
 					StatusBarNotification sbn = (StatusBarNotification)param.args[0];
 					// RankingMap rankingMap = (RankingMap)param.args[1];
-					// XposedBridge.log("ns " + sbn.getId());
 					apply(sbn);
-					// param.setResult(null);
 				}
-			});
-		} catch (Throwable e) { XposedBridge.log("NotificationListener hook failed"); }
+		}, nls = new XC_MethodHook() { // 捕获NotificationListenerService的具体实现
+			@Override
+			protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+				// XposedBridge.log("nls constructor " + param.thisObject);
+				try {
+					final Class<?> clazz = param.thisObject.getClass();
+					XposedBridge.log("NL clazz: " + clazz + " " + loadPackageParam.packageName);
+					XposedBridge.hookAllMethods(clazz, "onNotificationPosted", notifications);
+				} catch (Throwable e) { XposedBridge.log("StatusBar hook failed "); }
+			}
+		};
+		try {
+			final Class<?> clazz = XposedHelpers.findClass("android.service.notification.NotificationListenerService", loadPackageParam.classLoader);
+			XposedBridge.hookAllConstructors(clazz, nls);
+		} catch (Throwable e) { XposedBridge.log("NotificationListenerService hook failed "); }
 		try {
 			final Class<?> clazz = XposedHelpers.findClass("android.app.ContextImpl", loadPackageParam.classLoader);
 			XposedBridge.log("CI clazz: " + clazz);
@@ -60,8 +68,7 @@ public class MainHook implements IXposedHookLoadPackage {
 	private void onCreate(Context context) {
 		NevoDecoratorService.setAppContext(context);
 		wechat.onCreate();
-		for (NevoDecoratorService srv : services)
-			srv.onCreate();
+		miui.onCreate();
 	}
 
 	private void apply(StatusBarNotification sbn) {
