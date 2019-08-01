@@ -187,7 +187,7 @@ class MessagingBuilder {
 			final String participant = convs.getParticipant();	// No need to getParticipants() due to actually only one participant at most, see CarExtender.Builder().
 			if (participant != null) reply_remote_input.setLabel(participant);
 
-			final Action.Builder reply_action = new Action.Builder(null, mContext.getString(R.string.action_reply), proxy)
+			final Action.Builder reply_action = new Action.Builder(null, mPackageContext.getString(R.string.action_reply), proxy)
 					.addRemoteInput(reply_remote_input.build()).setAllowGeneratedReplies(true);
 			if (SDK_INT >= P) reply_action.setSemanticAction(Action.SEMANTIC_ACTION_REPLY);
 			WeChatDecorator.addAction(n, reply_action.build());
@@ -364,6 +364,7 @@ class MessagingBuilder {
 
 	MessagingBuilder(final Context context, final Context packageContext, final SharedPreferences preferences, final Controller controller) {
 		mContext = context;
+		mPackageContext = packageContext;
 		mDefaultIcon = IconCompat.createWithResource(packageContext, R.drawable.default_wechat_avatar);
 		mPreferences = preferences;
 		mController = controller;
@@ -383,7 +384,7 @@ class MessagingBuilder {
 		try { mContext.unregisterReceiver(mReplyReceiver); } catch (final RuntimeException ignored) {}
 	}
 
-	private final Context mContext;
+	private final Context mContext, mPackageContext;
 	private final IconCompat mDefaultIcon;
 	private final SharedPreferences mPreferences;
 	private final Controller mController;

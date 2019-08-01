@@ -1,7 +1,9 @@
 package com.oasisfeng.nevo.xposed;
 
 import android.content.Context;
+import android.service.notification.NotificationListenerService.RankingMap;
 import android.service.notification.StatusBarNotification;
+
 import android.util.Log;
 
 import java.util.concurrent.atomic.AtomicReference;
@@ -26,21 +28,34 @@ public class MainHook implements IXposedHookLoadPackage {
 	@Override
 	public void handleLoadPackage(XC_LoadPackage.LoadPackageParam loadPackageParam) throws Throwable {
 		if (!"com.android.systemui".equals(loadPackageParam.packageName)) return;
-		final XC_MethodHook notifications = new XC_MethodHook() { // 实际抓通知的
+		final XC_MethodHook onNotificationPosted = new XC_MethodHook() { // 捕获通知到达
 			@Override
 			protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
 				StatusBarNotification sbn = (StatusBarNotification)param.args[0];
 				// RankingMap rankingMap = (RankingMap)param.args[1];
-				apply(sbn);
+				onNotificationPosted(sbn);
+			}
+		}, onNotificationRemoved = new XC_MethodHook() { // 捕获通知移除
+			@Override
+			protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+				StatusBarNotification sbn = (StatusBarNotification)param.args[0];
+				// RankingMap rankingMap = (RankingMap)param.args[1];
+				// NotificationStats stats = (NotificationStats)param.args[2];
+				int reason = (int)param.args[3];
+				onNotificationRemoved(sbn, reason);
 			}
 		}, nls = new XC_MethodHook() { // 捕获NotificationListenerService的具体实现
 			@Override
-			protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+			protected void afterHookedMethod(MethodHookParam param) throws Throwable {
 				// XposedBridge.log("nls constructor " + param.thisObject);
 				try {
 					final Class<?> clazz = param.thisObject.getClass();
 					XposedBridge.log("NL clazz: " + clazz + " " + loadPackageParam.packageName);
-					XposedBridge.hookAllMethods(clazz, "onNotificationPosted", notifications);
+					XposedHelpers.findAndHookMethod(clazz, "onNotificationPosted", 
+							StatusBarNotification.class, RankingMap.class, onNotificationPosted);
+					XposedHelpers.findAndHookMethod(clazz, "onNotificationPosted",  StatusBarNotification.class, RankingMap.class,
+							XposedHelpers.findClass("android.service.notification.NotificationStats", loadPackageParam.classLoader),
+							int.class, onNotificationPosted);
 				} catch (Throwable e) { XposedBridge.log("StatusBar hook failed "); }
 			}
 		};
@@ -71,11 +86,19 @@ public class MainHook implements IXposedHookLoadPackage {
 		miui.onCreate();
 	}
 
-	private void apply(StatusBarNotification sbn) {
+	private void onNotificationPosted(StatusBarNotification sbn) {
 		if ("com.tencent.mm".equals(sbn.getPackageName())) {
 			wechat.apply(sbn);
 		} else if ("com.xiaomi.xmsf".equals(sbn.getPackageName())) {
 			miui.apply(sbn);
+		} else { }
+	}
+
+	private void onNotificationRemoved(StatusBarNotification sbn, int reason) {
+		if ("com.tencent.mm".equals(sbn.getPackageName())) {
+			wechat.onNotificationRemoved(sbn, reason);
+		} else if ("com.xiaomi.xmsf".equals(sbn.getPackageName())) {
+			miui.onNotificationRemoved(sbn, reason);
 		} else { }
 	}
 }

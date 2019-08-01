@@ -44,6 +44,9 @@ public abstract class NevoDecoratorService {
 	@Keep public void onDestroy() {}
 
 	@Keep public void apply(final StatusBarNotification evolving) {}
+	@Keep public void onNotificationRemoved(final StatusBarNotification evolving, final int reason) {}
 
-	protected final void recastNotification(final String key, final @Nullable Bundle fillInExtras) {}
+	protected final void recastNotification(final String key, final @Nullable Bundle fillInExtras) {
+		Log.d(TAG, "recastNotification");
+	}
 }

@@ -228,7 +228,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 		Log.d(TAG, ("Revive silently: ") + key);
 		final Bundle addition = new Bundle();
 		addition.putBoolean(KEY_SILENT_REVIVAL, true);
-		// TODO recastNotification(key, addition);
+		recastNotification(key, addition);
 	}
 
 	// @Override protected void onConnected() {
@@ -370,8 +370,6 @@ public class WeChatDecorator extends NevoDecoratorService {
 	}
 
 	public static void setId(StatusBarNotification sbn, int id) {
-		final int originalId = sbn.getId();
-		setOriginalId(sbn, originalId);
 		XposedHelpers.setIntField(sbn, "id", id);
 	}
 
@@ -396,22 +394,33 @@ public class WeChatDecorator extends NevoDecoratorService {
 	}
 
 	public static void setChannelId(Notification n, String channelId) {
-		// TODO
+		XposedHelpers.setObjectField(n, "mChannelId", channelId);
 	}
 
-	public static void setGroup(Notification n, String group) {
-		// TODO
+	public static void setGroup(Notification n, String groupKey) {
+		XposedHelpers.setObjectField(n, "mGroupKey", groupKey);
 	}
 
 	public static void setGroupAlertBehavior(Notification n, int behavior) {
-		// TODO
+		XposedHelpers.setIntField(n, "mGroupAlertBehavior", behavior);
 	}
 
-	public static void setSortKey(Notification n, String key) {
-		// TODO
+	public static void setSortKey(Notification n, String sortKey) {
+		XposedHelpers.setObjectField(n, "mSortKey", sortKey);
 	}
 
 	public static void addAction(Notification n, Action action) {
-		// TODO
+		Action[] actions = (Action[])XposedHelpers.getObjectField(n, "actions");
+		if (actions == null)
+			actions = new Action[] { action };
+		else {
+			List<Action> temp = new ArrayList<>();
+			for (Action a : actions) {
+				temp.add(a);
+			}
+			temp.add(action);
+			actions = temp.toArray(actions);
+		}
+		XposedHelpers.setObjectField(n, "actions", actions);
 	}
 }
