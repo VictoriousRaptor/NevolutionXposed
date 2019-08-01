@@ -208,21 +208,22 @@ public class WeChatDecorator extends NevoDecoratorService {
 	}
 	private Boolean mDistinctIdSupported;
 
-	// @Override protected void onNotificationRemoved(final StatusBarNotification notification, final int reason) {
-	// 	Log.d(TAG, "onNotificationRemoved(" + notification + ", " + reason + ")");
-	// }
+	@Override public void onNotificationRemoved(final StatusBarNotification notification, final int reason) {
+		Log.d(TAG, "onNotificationRemoved(" + notification + ", " + reason + ")");
+		super.onNotificationRemoved(notification, reason);
+	}
 
-	// @Override protected void onNotificationRemoved(final String key, final int reason) {
-	// 	Log.d(TAG, "onNotificationRemoved(" + key + ", " + reason + ")");
-	// 	if (reason == REASON_APP_CANCEL) {		// Only if "Removal-Aware" of Nevolution is activated
-	// 		Log.d(TAG, "Cancel notification: " + key);
-	// 		// TODO cancelNotification(key);	// Will cancel all notifications evolved from this original key, thus trigger the "else" branch below
-	// 	} else if (reason == REASON_CHANNEL_BANNED) {	// In case WeChat deleted our notification channel for group conversation in Insider delivery mode
-	// 		mHandler.post(() -> reviveNotificationAfterChannelDeletion(key));
-	// 	} else if (SDK_INT < O || reason == REASON_CANCEL) {	// Exclude the removal request by us in above case. (Removal-Aware is only supported on Android 8+)
-	// 		mMessagingBuilder.markRead(key);
-	// 	}
-	// }
+	@Override public void onNotificationRemoved(final String key, final int reason) {
+		Log.d(TAG, "onNotificationRemoved(" + key + ", " + reason + ")");
+		if (reason == REASON_APP_CANCEL) {		// Only if "Removal-Aware" of Nevolution is activated
+			Log.d(TAG, "Cancel notification: " + key);
+			cancelNotification(key);	// Will cancel all notifications evolved from this original key, thus trigger the "else" branch below
+		} else if (reason == REASON_CHANNEL_BANNED) {	// In case WeChat deleted our notification channel for group conversation in Insider delivery mode
+			// mHandler.post(() -> reviveNotificationAfterChannelDeletion(key));
+		} else if (SDK_INT < O || reason == REASON_CANCEL) {	// Exclude the removal request by us in above case. (Removal-Aware is only supported on Android 8+)
+			mMessagingBuilder.markRead(key);
+		}
+	}
 
 	private void reviveNotificationAfterChannelDeletion(final String key) {
 		Log.d(TAG, ("Revive silently: ") + key);
@@ -409,18 +410,15 @@ public class WeChatDecorator extends NevoDecoratorService {
 		XposedHelpers.setObjectField(n, "mSortKey", sortKey);
 	}
 
-	public static void addAction(Notification n, Action action) {
-		Action[] actions = (Action[])XposedHelpers.getObjectField(n, "actions");
-		if (actions == null)
-			actions = new Action[] { action };
-		else {
-			List<Action> temp = new ArrayList<>();
-			for (Action a : actions) {
-				temp.add(a);
-			}
-			temp.add(action);
-			actions = temp.toArray(actions);
-		}
+	public static void setActions(Notification n, Action... actions) {
 		XposedHelpers.setObjectField(n, "actions", actions);
+	}
+
+	private void recastNotification(final String key, final @Nullable Bundle fillInExtras) {
+		LinkedList<StatusBarNotification> queue = map.get(key);
+		if (queue == null) return;
+		StatusBarNotification sbn = queue.getLast();
+		sbn.getNotification().extras.putAll(fillInExtras);
+		recastNotification(sbn);
 	}
 }

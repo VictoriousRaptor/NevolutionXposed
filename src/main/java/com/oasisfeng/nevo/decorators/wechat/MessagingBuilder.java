@@ -190,7 +190,7 @@ class MessagingBuilder {
 			final Action.Builder reply_action = new Action.Builder(null, mPackageContext.getString(R.string.action_reply), proxy)
 					.addRemoteInput(reply_remote_input.build()).setAllowGeneratedReplies(true);
 			if (SDK_INT >= P) reply_action.setSemanticAction(Action.SEMANTIC_ACTION_REPLY);
-			WeChatDecorator.addAction(n, reply_action.build());
+			WeChatDecorator.setActions(n, reply_action.build());
 
 			// at and reply
 			// if (conversation.isGroupChat() && mPreferences.getBoolean(mPrefKeyMentionAction, false)) {
@@ -368,16 +368,15 @@ class MessagingBuilder {
 		mDefaultIcon = IconCompat.createWithResource(packageContext, R.drawable.default_wechat_avatar);
 		mPreferences = preferences;
 		mController = controller;
-		mUserSelf = buildPersonFromProfile(context);
+		mUserSelf = buildPersonFromProfile(packageContext);
 
-		mPrefKeyMentionAction = context.getString(R.string.pref_mention_action);
+		mPrefKeyMentionAction = packageContext.getString(R.string.pref_mention_action);
 		final IntentFilter filter = new IntentFilter(ACTION_REPLY); filter.addAction(ACTION_MENTION); filter.addDataScheme(SCHEME_KEY);
 		context.registerReceiver(mReplyReceiver, filter);
 	}
 
-	private static Person buildPersonFromProfile(final Context context) {
-		return new Person.Builder().setName(context.getString(R.string.self_display_name))
-				.setIcon(IconCompat.createWithResource(context, R.drawable.default_wechat_avatar)).build();
+	private static Person buildPersonFromProfile(final Context packageContext) {
+		return new Person.Builder().setName(packageContext.getString(R.string.self_display_name)).build();
 	}
 
 	void close() {

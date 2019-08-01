@@ -3,7 +3,10 @@ package com.oasisfeng.nevo.sdk;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.service.notification.NotificationListenerService;
+import android.service.notification.NotificationListenerService.RankingMap;
 import android.service.notification.StatusBarNotification;
+import android.util.Log;
 
 import androidx.annotation.Keep;
 import androidx.annotation.Nullable;
@@ -16,7 +19,14 @@ public abstract class NevoDecoratorService {
 	public static final String TEMPLATE_MEDIA		= "android.app.Notification$MediaStyle";
 	public static final String TEMPLATE_MESSAGING	= "android.app.Notification$MessagingStyle";
 
+	private static final String TAG = "NevoDecoratorService";
+
+	public static interface RecastAction {
+		public void recast(StatusBarNotification sbn);
+	}
+
 	private static volatile Context appContext;
+	private static volatile NotificationListenerService mNLS;
 
 	protected static Context getAppContext() {
 		return appContext;
@@ -24,6 +34,10 @@ public abstract class NevoDecoratorService {
 
 	public static void setAppContext(Context context) {
 		appContext = context;
+	}
+
+	public static void setNLS(NotificationListenerService nls) {
+		mNLS = nls;
 	}
 
 	protected static Context getPackageContext() {
@@ -44,9 +58,19 @@ public abstract class NevoDecoratorService {
 	@Keep public void onDestroy() {}
 
 	@Keep public void apply(final StatusBarNotification evolving) {}
-	@Keep public void onNotificationRemoved(final StatusBarNotification evolving, final int reason) {}
+	@Keep public void onNotificationRemoved(final StatusBarNotification evolving, final int reason) {
+		Log.d(TAG, "onNotificationRemoved(" + evolving + ", " + reason + ")");
+		onNotificationRemoved(evolving.getKey(), reason);
+	}
+	@Keep public void onNotificationRemoved(final String key, final int reason) {}
 
-	protected final void recastNotification(final String key, final @Nullable Bundle fillInExtras) {
-		Log.d(TAG, "recastNotification");
+	protected final void cancelNotification(String key) {
+		Log.d(TAG, "cancelNotification " + key);
+		if (mNLS != null) mNLS.cancelNotification(key);
+	}
+
+	protected final void recastNotification(final StatusBarNotification sbn) {
+		Log.d(TAG, "recastNotification " + sbn + " " + mNLS);
+		if (mNLS != null) mNLS.onNotificationPosted(sbn, null);
 	}
 }
