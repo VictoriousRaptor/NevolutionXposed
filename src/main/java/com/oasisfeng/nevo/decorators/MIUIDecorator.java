@@ -1,4 +1,4 @@
-package com.notxx.miui;
+package com.oasisfeng.nevo.decorators;
 
 import android.app.Application;
 import android.app.Notification;
@@ -12,15 +12,13 @@ import android.service.notification.StatusBarNotification;
 import android.util.ArrayMap;
 import android.util.Log;
 
-import com.oasisfeng.nevo.sdk.NevoDecoratorService;
-
 import de.robv.android.xposed.XposedHelpers;
 
-import notxx.NevolutionXposed.R;
+import com.oasisfeng.nevo.xposed.R;
 
 import top.trumeet.common.cache.IconCache;
 
-public class MIUIDecorator extends NevoDecoratorService {
+public class MIUIDecorator extends BigTextDecorator {
 
 	private static final String NOTIFICATION_SMALL_ICON = "mipush_small_notification";
 	private static final String TAG = "MIUIDecorator";
@@ -31,22 +29,22 @@ public class MIUIDecorator extends NevoDecoratorService {
 
 	@Override
 	public void apply(StatusBarNotification evolving) {
+		super.apply(evolving);
 		final Notification n = evolving.getNotification();
-		final Context context = getAppContext();
-		Log.d(TAG, "begin modifying " + context);
-		Icon defIcon = Icon.createWithResource(context, R.drawable.default_notification_icon);
-		Bundle extras = n.extras;
+		final Context context = getPackageContext();
+		Log.d(TAG, "begin modifying ");
+		Icon defIcon = Icon.createWithResource(context, R.drawable.mipush_small_notification);
 		String packageName = null;
 		try {
 			packageName = evolving.getPackageName();
 			if ("com.xiaomi.xmsf".equals(packageName))
-				packageName = extras.getString("target_package", null);
+				packageName = n.extras.getString("target_package", null);
 		} catch (final RuntimeException ignored) {} // Fall-through
 		if (packageName == null) {
 			Log.e(TAG, "packageName is null");
 			return;
 		}
-		extras.putBoolean("miui.isGrayscaleIcon", true);
+		n.extras.putBoolean("miui.isGrayscaleIcon", true);
 		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
 			// do nothing
 		} else {

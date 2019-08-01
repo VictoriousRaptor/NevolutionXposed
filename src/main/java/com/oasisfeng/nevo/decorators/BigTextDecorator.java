@@ -36,7 +36,7 @@ public class BigTextDecorator extends NevoDecoratorService {
 		final Bundle extras = n.extras;
 		final CharSequence text = extras.getCharSequence(Notification.EXTRA_TEXT);
 		if (text == null) return;
-		Log.d("BigText", "context = " + getAppContext() + ", text " + text);
+		Log.d("BigText", "context = " + getPackageContext() + ", text " + text);
 
 		extras.putCharSequence(Notification.EXTRA_TITLE_BIG, extras.getCharSequence(Notification.EXTRA_TITLE));
 		extras.putCharSequence(Notification.EXTRA_BIG_TEXT, text);

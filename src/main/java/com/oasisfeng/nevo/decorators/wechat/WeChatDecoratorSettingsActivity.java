@@ -25,7 +25,7 @@ import com.oasisfeng.nevo.sdk.NevoDecoratorService;
 
 import static com.oasisfeng.nevo.decorators.wechat.WeChatDecorator.WECHAT_PACKAGE;
 
-import notxx.NevolutionXposed.R;
+import com.oasisfeng.nevo.xposed.R;
 
 /**
  * Entry activity. Some ROMs (including Samsung, OnePlus) require a launcher activity to allow any component being bound by other app.

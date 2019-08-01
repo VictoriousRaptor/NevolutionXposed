@@ -7,7 +7,7 @@ import android.service.notification.StatusBarNotification;
 import static android.os.Build.VERSION.SDK_INT;
 import static android.os.Build.VERSION_CODES.O;
 
-import notxx.NevolutionXposed.R;
+import com.oasisfeng.nevo.xposed.R;
 
 /**
  * Tweaks to the voice call on-going notification.

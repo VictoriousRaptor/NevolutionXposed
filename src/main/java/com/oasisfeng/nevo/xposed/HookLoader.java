@@ -1,4 +1,4 @@
-package notxx.NevolutionXposed;
+package com.oasisfeng.nevo.xposed;
 
 import android.app.Application;
 import android.content.Context;

@@ -68,8 +68,8 @@ import com.oasisfeng.nevo.sdk.NevoDecoratorService;
 
 import de.robv.android.xposed.XposedHelpers;
 
-import notxx.NevolutionXposed.BuildConfig;
-import notxx.NevolutionXposed.R;
+import com.oasisfeng.nevo.xposed.BuildConfig;
+import com.oasisfeng.nevo.xposed.R;
 
 /**
  * Bring state-of-art notification experience to WeChat.
@@ -111,7 +111,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 
 		final Notification n = evolving.getNotification();
 		final Bundle extras = n.extras;
-		final Context context = getAppContext();
+		final Context context = getPackageContext();
 
 		CharSequence title = extras.getCharSequence(EXTRA_TITLE);
 		if (title == null || title.length() == 0) {
@@ -290,7 +290,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 		loadPreferences();
 		mPrefKeyWear = getString(R.string.pref_wear);
 
-		mMessagingBuilder = new MessagingBuilder(getAppContext(), mPreferences, this::recastNotification);		// Must be called after loadPreferences().
+		mMessagingBuilder = new MessagingBuilder(getAppContext(), getPackageContext(), mPreferences, this::recastNotification);		// Must be called after loadPreferences().
 		final IntentFilter filter = new IntentFilter(Intent.ACTION_PACKAGE_REMOVED); filter.addDataScheme("package");
 		// registerReceiver(mPackageEventReceiver, filter);
 		// registerReceiver(mSettingsChangedReceiver, new IntentFilter(ACTION_SETTINGS_CHANGED));
@@ -334,7 +334,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 	// }
 
 	private void loadPreferences() {
-		Context context = getAppContext();
+		Context context = getPackageContext();
 		if (SDK_INT >= N)
 			context = context.createDeviceProtectedStorageContext();
 		//noinspection deprecation

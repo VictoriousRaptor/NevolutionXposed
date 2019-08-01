@@ -1,4 +1,4 @@
-package notxx.NevolutionXposed;
+package com.oasisfeng.nevo.xposed;
 
 import android.content.Context;
 import android.service.notification.StatusBarNotification;
@@ -21,18 +21,18 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
  */
 public class MainHook implements IXposedHookLoadPackage {
 	private final NevoDecoratorService wechat = new com.oasisfeng.nevo.decorators.wechat.WeChatDecorator();
-	private final NevoDecoratorService miui = new com.notxx.miui.MIUIDecorator();
+	private final NevoDecoratorService miui = new com.oasisfeng.nevo.decorators.MIUIDecorator();
 
 	@Override
 	public void handleLoadPackage(XC_LoadPackage.LoadPackageParam loadPackageParam) throws Throwable {
 		if (!"com.android.systemui".equals(loadPackageParam.packageName)) return;
 		final XC_MethodHook notifications = new XC_MethodHook() { // 实际抓通知的
-				@Override
-				protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-					StatusBarNotification sbn = (StatusBarNotification)param.args[0];
-					// RankingMap rankingMap = (RankingMap)param.args[1];
-					apply(sbn);
-				}
+			@Override
+			protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+				StatusBarNotification sbn = (StatusBarNotification)param.args[0];
+				// RankingMap rankingMap = (RankingMap)param.args[1];
+				apply(sbn);
+			}
 		}, nls = new XC_MethodHook() { // 捕获NotificationListenerService的具体实现
 			@Override
 			protected void beforeHookedMethod(MethodHookParam param) throws Throwable {

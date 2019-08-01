@@ -49,8 +49,8 @@ import static androidx.core.app.NotificationCompat.EXTRA_IS_GROUP_CONVERSATION;
 import static androidx.core.app.NotificationCompat.EXTRA_MESSAGES;
 import static androidx.core.app.NotificationCompat.EXTRA_SELF_DISPLAY_NAME;
 
-import notxx.NevolutionXposed.BuildConfig;
-import notxx.NevolutionXposed.R;
+import com.oasisfeng.nevo.xposed.BuildConfig;
+import com.oasisfeng.nevo.xposed.R;
 
 import static com.oasisfeng.nevo.decorators.wechat.WeChatMessage.SENDER_MESSAGE_SEPARATOR;
 
@@ -362,9 +362,9 @@ class MessagingBuilder {
 
 	interface Controller { void recastNotification(String key, Bundle addition); }
 
-	MessagingBuilder(final Context context, final SharedPreferences preferences, final Controller controller) {
+	MessagingBuilder(final Context context, final Context packageContext, final SharedPreferences preferences, final Controller controller) {
 		mContext = context;
-		mDefaultIcon = IconCompat.createWithResource(context, R.drawable.default_wechat_avatar);
+		mDefaultIcon = IconCompat.createWithResource(packageContext, R.drawable.default_wechat_avatar);
 		mPreferences = preferences;
 		mController = controller;
 		mUserSelf = buildPersonFromProfile(context);

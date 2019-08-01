@@ -26,6 +26,12 @@ public abstract class NevoDecoratorService {
 		appContext = context;
 	}
 
+	protected static Context getPackageContext() {
+		try {
+			return appContext.createPackageContext("com.oasisfeng.nevo.xposed", Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY);
+		} catch (PackageManager.NameNotFoundException ig) { return null; }
+	}
+
 	protected static PackageManager getPackageManager() {
 		return getAppContext().getPackageManager();
 	}

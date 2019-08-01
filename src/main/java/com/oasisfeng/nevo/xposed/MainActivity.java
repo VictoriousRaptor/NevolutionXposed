@@ -1,4 +1,4 @@
-package notxx.NevolutionXposed;
+package com.oasisfeng.nevo.xposed;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -12,7 +12,6 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
     }
 
     public void github(View v){
