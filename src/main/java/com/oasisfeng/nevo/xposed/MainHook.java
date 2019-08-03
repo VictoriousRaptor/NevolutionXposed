@@ -26,6 +26,7 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 public class MainHook implements IXposedHookLoadPackage {
 	private final NevoDecoratorService wechat = new com.oasisfeng.nevo.decorators.wechat.WeChatDecorator();
 	private final NevoDecoratorService miui = new com.oasisfeng.nevo.decorators.MIUIDecorator();
+	private final NevoDecoratorService media = new com.oasisfeng.nevo.decorators.media.MediaDecorator();
 
 	private final AtomicReference<NotificationListenerService> nlsRef = new AtomicReference<>();
 
@@ -99,18 +100,26 @@ public class MainHook implements IXposedHookLoadPackage {
 	}
 
 	private void onNotificationPosted(StatusBarNotification sbn) {
-		if ("com.tencent.mm".equals(sbn.getPackageName())) {
+		switch (sbn.getPackageName()) {
+			case "com.tencent.mm":
 			wechat.apply(sbn);
-		} else if ("com.xiaomi.xmsf".equals(sbn.getPackageName())) {
+			break;
+			case "com.xiaomi.xmsf":
 			miui.apply(sbn);
-		} else { }
+			break;
+		}
+		media.apply(sbn);
 	}
 
 	private void onNotificationRemoved(StatusBarNotification sbn, int reason) {
-		if ("com.tencent.mm".equals(sbn.getPackageName())) {
+		switch (sbn.getPackageName()) {
+			case "com.tencent.mm":
 			wechat.onNotificationRemoved(sbn, reason);
-		} else if ("com.xiaomi.xmsf".equals(sbn.getPackageName())) {
+			break;
+			case "com.xiaomi.xmsf":
 			miui.onNotificationRemoved(sbn, reason);
-		} else { }
+			break;
+		}
+		media.onNotificationRemoved(sbn, reason);
 	}
 }

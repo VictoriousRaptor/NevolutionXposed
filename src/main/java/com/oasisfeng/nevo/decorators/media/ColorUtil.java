@@ -1,4 +1,4 @@
-package com.oasisfeng.nevo.xposed;
+package com.oasisfeng.nevo.decorators.media;
 
 import android.graphics.Bitmap;
 import android.graphics.Color;

@@ -17,7 +17,6 @@
 package com.oasisfeng.nevo.decorators.wechat;
 
 import android.app.Notification;
-import android.app.Notification.Action;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.BroadcastReceiver;
@@ -368,50 +367,6 @@ public class WeChatDecorator extends NevoDecoratorService {
 	public static List<StatusBarNotification> getArchivedNotifications(String key, int max) {
 		LinkedList<StatusBarNotification> queue = map.get(key);
 		return queue != null ? new ArrayList<>(queue) : new ArrayList<>();
-	}
-
-	public static void setId(StatusBarNotification sbn, int id) {
-		XposedHelpers.setIntField(sbn, "id", id);
-	}
-
-	public static int getOriginalId(StatusBarNotification sbn) {
-		return (Integer)XposedHelpers.getAdditionalInstanceField(sbn, "originalId");
-	}
-
-	public static void setOriginalId(StatusBarNotification sbn, int id) {
-		XposedHelpers.setAdditionalInstanceField(sbn, "originalId", (Integer)id);
-	}
-
-	public static String getOriginalKey(StatusBarNotification sbn) {
-		return (String)XposedHelpers.getAdditionalInstanceField(sbn, "originalKey");
-	}
-
-	public static void setOriginalKey(StatusBarNotification sbn, String key) {
-		XposedHelpers.setAdditionalInstanceField(sbn, "originalKey", key);
-	}
-
-	public static void setOriginalTag(StatusBarNotification sbn, String tag) {
-		XposedHelpers.setAdditionalInstanceField(sbn, "originalTag", tag);
-	}
-
-	public static void setChannelId(Notification n, String channelId) {
-		XposedHelpers.setObjectField(n, "mChannelId", channelId);
-	}
-
-	public static void setGroup(Notification n, String groupKey) {
-		XposedHelpers.setObjectField(n, "mGroupKey", groupKey);
-	}
-
-	public static void setGroupAlertBehavior(Notification n, int behavior) {
-		XposedHelpers.setIntField(n, "mGroupAlertBehavior", behavior);
-	}
-
-	public static void setSortKey(Notification n, String sortKey) {
-		XposedHelpers.setObjectField(n, "mSortKey", sortKey);
-	}
-
-	public static void setActions(Notification n, Action... actions) {
-		XposedHelpers.setObjectField(n, "actions", actions);
 	}
 
 	private void recastNotification(final String key, final @Nullable Bundle fillInExtras) {

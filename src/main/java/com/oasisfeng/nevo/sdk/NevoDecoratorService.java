@@ -1,5 +1,7 @@
 package com.oasisfeng.nevo.sdk;
 
+import android.app.Notification;
+import android.app.Notification.Action;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
@@ -11,11 +13,17 @@ import android.util.Log;
 import androidx.annotation.Keep;
 import androidx.annotation.Nullable;
 
+import de.robv.android.xposed.XposedHelpers;
+
+import com.oasisfeng.nevo.xposed.BuildConfig;
+
+
 public abstract class NevoDecoratorService {
 	/** Valid constant values for {@link android.app.Notification#EXTRA_TEMPLATE} */
 	public static final String TEMPLATE_BIG_TEXT	= "android.app.Notification$BigTextStyle";
-	public static final String TEMPLATE_INBOX		= "android.app.Notification$InboxStyle";
 	public static final String TEMPLATE_BIG_PICTURE	= "android.app.Notification$BigPictureStyle";
+	public static final String TEMPLATE_CUSTOM		= "android.app.Notification$DecoratedCustomViewStyle";
+	public static final String TEMPLATE_INBOX		= "android.app.Notification$InboxStyle";
 	public static final String TEMPLATE_MEDIA		= "android.app.Notification$MediaStyle";
 	public static final String TEMPLATE_MESSAGING	= "android.app.Notification$MessagingStyle";
 
@@ -42,7 +50,7 @@ public abstract class NevoDecoratorService {
 
 	protected static Context getPackageContext() {
 		try {
-			return appContext.createPackageContext("com.oasisfeng.nevo.xposed", Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY);
+			return appContext.createPackageContext(BuildConfig.APPLICATION_ID, Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY);
 		} catch (PackageManager.NameNotFoundException ig) { return null; }
 	}
 
@@ -52,6 +60,54 @@ public abstract class NevoDecoratorService {
 
 	protected static String getString(int key) {
 		return getAppContext().getString(key);
+	}
+
+	public static void setId(StatusBarNotification sbn, int id) {
+		XposedHelpers.setIntField(sbn, "id", id);
+	}
+
+	public static void setNotification(StatusBarNotification sbn, Notification n) {
+		XposedHelpers.setObjectField(sbn, "notification", n);
+	}
+
+	public static int getOriginalId(StatusBarNotification sbn) {
+		return (Integer)XposedHelpers.getAdditionalInstanceField(sbn, "originalId");
+	}
+
+	public static void setOriginalId(StatusBarNotification sbn, int id) {
+		XposedHelpers.setAdditionalInstanceField(sbn, "originalId", (Integer)id);
+	}
+
+	public static String getOriginalKey(StatusBarNotification sbn) {
+		return (String)XposedHelpers.getAdditionalInstanceField(sbn, "originalKey");
+	}
+
+	public static void setOriginalKey(StatusBarNotification sbn, String key) {
+		XposedHelpers.setAdditionalInstanceField(sbn, "originalKey", key);
+	}
+
+	public static void setOriginalTag(StatusBarNotification sbn, String tag) {
+		XposedHelpers.setAdditionalInstanceField(sbn, "originalTag", tag);
+	}
+
+	public static void setChannelId(Notification n, String channelId) {
+		XposedHelpers.setObjectField(n, "mChannelId", channelId);
+	}
+
+	public static void setGroup(Notification n, String groupKey) {
+		XposedHelpers.setObjectField(n, "mGroupKey", groupKey);
+	}
+
+	public static void setGroupAlertBehavior(Notification n, int behavior) {
+		XposedHelpers.setIntField(n, "mGroupAlertBehavior", behavior);
+	}
+
+	public static void setSortKey(Notification n, String sortKey) {
+		XposedHelpers.setObjectField(n, "mSortKey", sortKey);
+	}
+
+	public static void setActions(Notification n, Action... actions) {
+		XposedHelpers.setObjectField(n, "actions", actions);
 	}
 
 	@Keep public void onCreate() {}
