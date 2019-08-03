@@ -32,6 +32,14 @@ import com.oasisfeng.nevo.xposed.R;
  */
 
 public class MediaDecorator extends NevoDecoratorService {
+	private interface BindAction {
+		void bind(RemoteViews remoteViews, int id, Notification.Action action);
+	}
+
+	private interface BindRemoteViews {
+		void bind(RemoteViews remoteViews);
+	}
+
 	private static final String TAG = "MediaDecorator";
 
 	@Override public void apply(final StatusBarNotification evolved) {
@@ -42,19 +50,10 @@ public class MediaDecorator extends NevoDecoratorService {
 		}
 		Bundle extras = n.extras;
 		int[] array = extras.getIntArray(Notification.EXTRA_COMPACT_ACTIONS);
-		String title = extras.getString(Notification.EXTRA_TITLE, "未知音乐");
-		String text = extras.getString(Notification.EXTRA_TEXT, "未知艺术家");
-		RemoteViews remoteViews = getContentView(title, text, n, evolved.getPackageName());
-		// extras.putString(Notification.EXTRA_TEMPLATE, TEMPLATE_CUSTOM);
-		n.contentView = remoteViews;
-		n.bigContentView = remoteViews;
-		// XposedHelpers.setBooleanField(n, "mUsesStandardHeader", true);
-		extras.remove(Notification.EXTRA_TEMPLATE);
-		// extras.putString(Notification.EXTRA_MEDIA_SESSION, null);
-		Log.d(TAG, "notification " + n);
-	}
-
-	private RemoteViews getContentView(String title, String subtitle, Notification n, String packageName) {
+		CharSequence title = extras.getCharSequence(Notification.EXTRA_TITLE, null);
+		CharSequence text = extras.getCharSequence(Notification.EXTRA_TEXT, null);
+		if (title == null)
+			Log.d(TAG, "extras " + extras);
 		int backgroundColor, textColor;
 		if (n.getLargeIcon() != null){
 			Bitmap bitmap = getLargeIcon(n);
@@ -65,32 +64,36 @@ public class MediaDecorator extends NevoDecoratorService {
 			backgroundColor = Color.BLACK;
 			textColor = Color.WHITE;
 		}
+		String packageName = evolved.getPackageName();
 		Context context = getPackageContext();
 		PackageManager pm = context.getPackageManager();
-		RemoteViews remoteViews = new RemoteViews(BuildConfig.APPLICATION_ID, R.layout.notifition_layout);
 		String appLabel;
 		try {
 			appLabel = pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString();
 		} catch (PackageManager.NameNotFoundException ex) { appLabel = "??"; }
-
-		remoteViews.setTextViewText(R.id.appName, appLabel);
-		remoteViews.setTextViewText(R.id.title, title);
-		remoteViews.setTextViewText(R.id.subtitle, subtitle);
-		remoteViews.setImageViewIcon(R.id.smallIcon, n.getSmallIcon());
-		remoteViews.setTextColor(R.id.appName, textColor);
-		remoteViews.setTextColor(R.id.title, textColor);
-		remoteViews.setTextColor(R.id.subtitle, textColor);
-		remoteViews.setImageViewIcon(R.id.largeIcon, n.getLargeIcon());
-		remoteViews.setInt(R.id.smallIcon, "setColorFilter", textColor);
-		remoteViews.setInt(R.id.foregroundImage, "setColorFilter", backgroundColor);
-		remoteViews.setInt(R.id.background, "setBackgroundColor", backgroundColor);
+		final String appLabel0 = appLabel;
 		TypedArray typedArray = context.obtainStyledAttributes(new int[] { android.R.attr.selectableItemBackground });
 		int selectableItemBackground = typedArray.getResourceId(0, 0);
 		typedArray.recycle();
+		BindRemoteViews bindRemoteViews = (remoteViews) -> {
+			remoteViews.setTextViewText(R.id.appName, appLabel0);
+			if (title != null)
+				remoteViews.setTextViewText(R.id.title, title);
+			if (text != null)
+				remoteViews.setTextViewText(R.id.subtitle, text);
+			remoteViews.setImageViewIcon(R.id.smallIcon, n.getSmallIcon());
+			remoteViews.setTextColor(R.id.appName, textColor);
+			remoteViews.setTextColor(R.id.title, textColor);
+			remoteViews.setTextColor(R.id.subtitle, textColor);
+			remoteViews.setImageViewIcon(R.id.largeIcon, n.getLargeIcon());
+			remoteViews.setInt(R.id.smallIcon, "setColorFilter", textColor);
+			remoteViews.setInt(R.id.foregroundImage, "setColorFilter", backgroundColor);
+			remoteViews.setInt(R.id.background, "setBackgroundColor", backgroundColor);
+		};
 		try {
 			Context target = context.createPackageContext(packageName, Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY);
-			BindAction bindAction = (int id, Notification.Action action) -> {
-				Log.d(TAG, id + " " + action.getIcon() + " " + n.getSmallIcon());
+			BindAction bindAction = (remoteViews, id, action) -> {
+				// Log.d(TAG, id + " " + action.getIcon() + " " + n.getSmallIcon());
 				remoteViews.setViewVisibility(id, View.VISIBLE);
 				// remoteViews.setImageViewBitmap(id, BitmapFactory.decodeResource(context.getResources(),action.getIcon().getResId()));
 				remoteViews.setImageViewIcon(id, Icon.createWithResource(target, action.getIcon().getResId()));
@@ -98,27 +101,48 @@ public class MediaDecorator extends NevoDecoratorService {
 				remoteViews.setInt(id, "setColorFilter", textColor);
 				remoteViews.setInt(id, "setBackgroundResource", selectableItemBackground);
 			};
+			int[] compacts = n.extras.getIntArray(Notification.EXTRA_COMPACT_ACTIONS);
+			if (n.contentView == null || XposedHelpers.getAdditionalInstanceField(n.contentView, "mark") == null) {
+				n.contentView = new RemoteViews(BuildConfig.APPLICATION_ID, R.layout.notifition_layout);
+				XposedHelpers.setAdditionalInstanceField(n.contentView, "mark", Boolean.TRUE);
+			}
+			bindRemoteViews.bind(n.contentView);
 			if (n.actions != null) {
 				Log.d(TAG, "" + n.actions.length);
 				if (n.actions.length > 0)
-					bindAction.bindAction(R.id.ic_0, n.actions[0]);
+					bindAction.bind(n.contentView, R.id.ic_0, n.actions[compacts[0]]);
 				if (n.actions.length > 1)
-					bindAction.bindAction(R.id.ic_1, n.actions[1]);
+					bindAction.bind(n.contentView, R.id.ic_1, n.actions[compacts[1]]);
 				if (n.actions.length > 2)
-					bindAction.bindAction(R.id.ic_2, n.actions[2]);
+					bindAction.bind(n.contentView, R.id.ic_2, n.actions[compacts[2]]);
+			} else {
+				Log.d(TAG, "no action");
+			}
+			if (n.bigContentView == null || XposedHelpers.getAdditionalInstanceField(n.bigContentView, "mark") == null) {
+				n.bigContentView = new RemoteViews(BuildConfig.APPLICATION_ID, R.layout.notifition_layout_big);
+				XposedHelpers.setAdditionalInstanceField(n.bigContentView, "mark", Boolean.TRUE);
+			}
+			bindRemoteViews.bind(n.bigContentView);
+			if (n.actions != null) {
+				Log.d(TAG, "" + n.actions.length);
+				if (n.actions.length > 0)
+					bindAction.bind(n.bigContentView, R.id.ic_0, n.actions[0]);
+				if (n.actions.length > 1)
+					bindAction.bind(n.bigContentView, R.id.ic_1, n.actions[1]);
+				if (n.actions.length > 2)
+					bindAction.bind(n.bigContentView, R.id.ic_2, n.actions[2]);
 				if (n.actions.length > 3)
-					bindAction.bindAction(R.id.ic_3, n.actions[3]);
+					bindAction.bind(n.bigContentView, R.id.ic_3, n.actions[3]);
 				if (n.actions.length > 4)
-					bindAction.bindAction(R.id.ic_4, n.actions[4]);
+					bindAction.bind(n.bigContentView, R.id.ic_4, n.actions[4]);
 			} else {
 				Log.d(TAG, "no action");
 			}
 		} catch (PackageManager.NameNotFoundException ex) { Log.d(TAG, "package " + packageName + "not found"); }
-		return remoteViews;
-	}
-
-	private interface BindAction {
-		void bindAction(int id, Notification.Action action);
+		// n.contentView = getContentView(title, text, n, evolved.getPackageName());
+		// n.bigContentView = getBigContentView(title, text, n, evolved.getPackageName());
+		extras.remove(Notification.EXTRA_TEMPLATE);
+		Log.d(TAG, "notification " + n);
 	}
 
 	private Bitmap getLargeIcon(Notification notification){
