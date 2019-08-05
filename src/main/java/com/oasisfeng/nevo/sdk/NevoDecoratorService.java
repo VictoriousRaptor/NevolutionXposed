@@ -2,6 +2,8 @@ package com.oasisfeng.nevo.sdk;
 
 import android.app.Notification;
 import android.app.Notification.Action;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
@@ -33,10 +35,12 @@ public abstract class NevoDecoratorService {
 		public void recast(StatusBarNotification sbn);
 	}
 
-	private static volatile Context appContext;
+	private static volatile Context appContext, packageContext;
 	private static volatile NotificationListenerService mNLS;
 
-	protected static Context getAppContext() {
+	public static Context getAppContext() {
+		if (appContext == null)
+			appContext = android.app.AndroidAppHelper.currentApplication().getApplicationContext();
 		return appContext;
 	}
 
@@ -49,8 +53,14 @@ public abstract class NevoDecoratorService {
 	}
 
 	protected static Context getPackageContext() {
+		return getPackageContext(BuildConfig.APPLICATION_ID);
+	}
+
+	protected static Context getPackageContext(String packageName) {
 		try {
-			return appContext.createPackageContext(BuildConfig.APPLICATION_ID, Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY);
+			if (packageContext == null)
+				packageContext = getAppContext().createPackageContext(packageName, Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY);
+			return packageContext;
 		} catch (PackageManager.NameNotFoundException ig) { return null; }
 	}
 
@@ -59,7 +69,7 @@ public abstract class NevoDecoratorService {
 	}
 
 	protected static String getString(int key) {
-		return getAppContext().getString(key);
+		return getPackageContext().getString(key);
 	}
 
 	public static void setId(StatusBarNotification sbn, int id) {
@@ -112,6 +122,7 @@ public abstract class NevoDecoratorService {
 
 	@Keep public void onCreate() {}
 	@Keep public void onDestroy() {}
+	@Keep public void notificationChannels(NotificationManager nm) {}
 
 	@Keep public void apply(final StatusBarNotification evolving) {}
 	@Keep public void onNotificationRemoved(final StatusBarNotification evolving, final int reason) {

@@ -231,47 +231,46 @@ public class WeChatDecorator extends NevoDecoratorService {
 		recastNotification(key, addition);
 	}
 
-	// @Override protected void onConnected() {
-	// 	if (SDK_INT >= O) {
-	// 		mWeChatTargetingO = isWeChatTargeting26OrAbove();
-	// 		final List<NotificationChannel> channels = new ArrayList<>();
-	// 		channels.add(makeChannel(CHANNEL_GROUP_CONVERSATION, R.string.channel_group_message, false));
-	// 		// WeChat versions targeting O+ have its own channels for message and misc
-	// 		channels.add(migrate(OLD_CHANNEL_MESSAGE,	CHANNEL_MESSAGE,	R.string.channel_message, false));
-	// 		channels.add(migrate(OLD_CHANNEL_MISC,		CHANNEL_MISC,		R.string.channel_misc, true));
-	// 		createNotificationChannels(WECHAT_PACKAGE, Process.myUserHandle(), channels);
-	// 	}
-	// }
+	@Override public void notificationChannels(NotificationManager nm) {
+		mWeChatTargetingO = isWeChatTargeting26OrAbove();
+		final List<NotificationChannel> channels = new ArrayList<>();
+		channels.add(makeChannel(CHANNEL_GROUP_CONVERSATION, R.string.channel_group_message, false));
+		// WeChat versions targeting O+ have its own channels for message and misc
+		channels.add(migrate(nm, OLD_CHANNEL_MESSAGE,	CHANNEL_MESSAGE,	R.string.channel_message, false));
+		channels.add(migrate(nm, OLD_CHANNEL_MISC,		CHANNEL_MISC,		R.string.channel_misc, true));
+		Log.d("inspect", "WeChat.notificationChannels " + channels);
+		nm.createNotificationChannels(channels);
+	}
 
-	// @RequiresApi(O) private NotificationChannel migrate(final String old_id, final String new_id, final @StringRes int new_name, final boolean silent) {
-	// 	final NotificationChannel channel_message = getNotificationChannel(WECHAT_PACKAGE, Process.myUserHandle(), old_id);
-	// 	deleteNotificationChannel(WECHAT_PACKAGE, Process.myUserHandle(), old_id);
-	// 	if (channel_message != null) return cloneChannel(channel_message, new_id, new_name);
-	// 	else return makeChannel(new_id, new_name, silent);
-	// }
+	@RequiresApi(O) private NotificationChannel migrate(NotificationManager nm, final String old_id, final String new_id, final @StringRes int new_name, final boolean silent) {
+		final NotificationChannel channel_message = nm.getNotificationChannel(old_id);
+		nm.deleteNotificationChannel(old_id);
+		if (channel_message != null) return cloneChannel(channel_message, new_id, new_name);
+		else return makeChannel(new_id, new_name, silent);
+	}
 
-	// @RequiresApi(O) private NotificationChannel makeChannel(final String channel_id, final @StringRes int name, final boolean silent) {
-	// 	final NotificationChannel channel = new NotificationChannel(channel_id, getString(name), NotificationManager.IMPORTANCE_HIGH/* Allow heads-up (by default) */);
-	// 	if (silent) channel.setSound(null, null);
-	// 	else channel.setSound(getDefaultSound(), new AudioAttributes.Builder().setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-	// 			.setUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_INSTANT).build());
-	// 	channel.enableLights(true);
-	// 	channel.setLightColor(LIGHT_COLOR);
-	// 	return channel;
-	// }
+	@RequiresApi(O) private NotificationChannel makeChannel(final String channel_id, final @StringRes int name, final boolean silent) {
+		final NotificationChannel channel = new NotificationChannel(channel_id, getString(name), NotificationManager.IMPORTANCE_HIGH/* Allow heads-up (by default) */);
+		if (silent) channel.setSound(null, null);
+		else channel.setSound(getDefaultSound(), new AudioAttributes.Builder().setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+				.setUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_INSTANT).build());
+		channel.enableLights(true);
+		channel.setLightColor(LIGHT_COLOR);
+		return channel;
+	}
 
-	// @RequiresApi(O) private NotificationChannel cloneChannel(final NotificationChannel channel, final String id, final int new_name) {
-	// 	final NotificationChannel clone = new NotificationChannel(id, getString(new_name), channel.getImportance());
-	// 	clone.setGroup(channel.getGroup());
-	// 	clone.setDescription(channel.getDescription());
-	// 	clone.setLockscreenVisibility(channel.getLockscreenVisibility());
-	// 	clone.setSound(Optional.ofNullable(channel.getSound()).orElse(getDefaultSound()), channel.getAudioAttributes());
-	// 	clone.setBypassDnd(channel.canBypassDnd());
-	// 	clone.setLightColor(channel.getLightColor());
-	// 	clone.setShowBadge(channel.canShowBadge());
-	// 	clone.setVibrationPattern(channel.getVibrationPattern());
-	// 	return clone;
-	// }
+	@RequiresApi(O) private NotificationChannel cloneChannel(final NotificationChannel channel, final String id, final int new_name) {
+		final NotificationChannel clone = new NotificationChannel(id, getString(new_name), channel.getImportance());
+		clone.setGroup(channel.getGroup());
+		clone.setDescription(channel.getDescription());
+		clone.setLockscreenVisibility(channel.getLockscreenVisibility());
+		clone.setSound(Optional.ofNullable(channel.getSound()).orElse(getDefaultSound()), channel.getAudioAttributes());
+		clone.setBypassDnd(channel.canBypassDnd());
+		clone.setLightColor(channel.getLightColor());
+		clone.setShowBadge(channel.canShowBadge());
+		clone.setVibrationPattern(channel.getVibrationPattern());
+		return clone;
+	}
 
 	@Nullable private Uri getDefaultSound() {	// Before targeting O, WeChat actually plays sound by itself (not via Notification).
 		return mWeChatTargetingO ? Settings.System.DEFAULT_NOTIFICATION_URI : null;
@@ -291,9 +290,6 @@ public class WeChatDecorator extends NevoDecoratorService {
 		mPrefKeyWear = getString(R.string.pref_wear);
 
 		mMessagingBuilder = new MessagingBuilder(getAppContext(), getPackageContext(), mPreferences, this::recastNotification);		// Must be called after loadPreferences().
-		final IntentFilter filter = new IntentFilter(Intent.ACTION_PACKAGE_REMOVED); filter.addDataScheme("package");
-		// registerReceiver(mPackageEventReceiver, filter);
-		// registerReceiver(mSettingsChangedReceiver, new IntentFilter(ACTION_SETTINGS_CHANGED));
 	}
 
 	@Override public void onDestroy() {
@@ -302,36 +298,6 @@ public class WeChatDecorator extends NevoDecoratorService {
 		mMessagingBuilder.close();
 		super.onDestroy();
 	}
-
-	// @Override public int onStartCommand(final Intent intent, final int flags, final int startId) {
-	// 	String tag = null; int id = 0;
-	// 	if (SDK_INT >= O && BuildConfig.DEBUG && ACTION_DEBUG_NOTIFICATION.equals(intent.getAction())) try {
-	// 		tag = intent.getStringExtra(Notification.EXTRA_NOTIFICATION_TAG);
-	// 		id = intent.getIntExtra(Notification.EXTRA_NOTIFICATION_ID, 0);
-	// 		@SuppressWarnings("deprecation") final String key = new StatusBarNotification(WECHAT_PACKAGE, null, id, tag, getPackageManager()
-	// 				.getPackageUid(WECHAT_PACKAGE, 0), 0, 0, new Notification(), Process.myUserHandle(), 0).getKey();
-	// 		final StatusBarNotification sbn = getLatestNotifications(Collections.singletonList(key)).get(0);
-	// 		final Notification n = sbn.getNotification();
-	// 		final Notification.CarExtender.UnreadConversation conversation = new Notification.CarExtender(n).getUnreadConversation();
-	// 		if (conversation != null) {
-	// 			final String[] lines = Arrays.copyOf(conversation.getMessages(), conversation.getMessages().length + 2);
-	// 			final long t = conversation.getLatestTimestamp();
-	// 			lines[lines.length - 2] = "TS:" + (t == 0 ? "00" : t - n.when) + ",P:" + conversation.getParticipant();
-	// 			lines[lines.length - 1] = n.tickerText != null ? n.tickerText.toString() : null;
-	// 			n.extras.putCharSequenceArray(Notification.EXTRA_TEXT_LINES, lines);
-	// 			n.extras.putString(Notification.EXTRA_TEMPLATE, Notification.InboxStyle.class.getName());
-	// 		} else {
-	// 			if (n.tickerText != null) n.extras.putCharSequence(Notification.EXTRA_BIG_TEXT, n.extras.getCharSequence(EXTRA_TEXT) + "\n" + n.tickerText);
-	// 			n.extras.putString(Notification.EXTRA_TEMPLATE, Notification.BigTextStyle.class.getName());
-	// 		}
-	// 		final NotificationManager nm = getSystemService(NotificationManager.class);
-	// 		nm.createNotificationChannel(new NotificationChannel(n.getChannelId(), "Debug:" + n.getChannelId(), NotificationManager.IMPORTANCE_LOW));
-	// 		nm.notify(tag, id, n);
-	// 	} catch (final PackageManager.NameNotFoundException | RuntimeException e) {
-	// 		Log.e(TAG, "Error debugging notification, id=" + id + ", tag=" + tag, e);
-	// 	}
-	// 	return START_NOT_STICKY;
-	// }
 
 	private void loadPreferences() {
 		Context context = getPackageContext();
