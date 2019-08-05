@@ -11,6 +11,7 @@ import android.service.notification.NotificationListenerService;
 import android.service.notification.NotificationListenerService.RankingMap;
 import android.service.notification.StatusBarNotification;
 import android.util.Log;
+import android.widget.RemoteViews;
 
 import androidx.annotation.Keep;
 import androidx.annotation.Nullable;
@@ -21,6 +22,8 @@ import com.oasisfeng.nevo.xposed.BuildConfig;
 
 
 public abstract class NevoDecoratorService {
+	public static final String EXTRAS_BIG_CONTENT_VIEW_OVERRIDE = "nevo.bigContentView";
+	public static final String EXTRAS_CONTENT_VIEW_OVERRIDE = "nevo.contentView";
 	/** Valid constant values for {@link android.app.Notification#EXTRA_TEMPLATE} */
 	public static final String TEMPLATE_BIG_TEXT	= "android.app.Notification$BigTextStyle";
 	public static final String TEMPLATE_BIG_PICTURE	= "android.app.Notification$BigPictureStyle";
@@ -98,6 +101,24 @@ public abstract class NevoDecoratorService {
 
 	public static void setOriginalTag(StatusBarNotification sbn, String tag) {
 		XposedHelpers.setAdditionalInstanceField(sbn, "originalTag", tag);
+	}
+
+	public static RemoteViews overrideBigContentView(Notification n, RemoteViews remoteViews) {
+		n.extras.putParcelable(EXTRAS_BIG_CONTENT_VIEW_OVERRIDE, remoteViews);
+		return remoteViews;
+	}
+
+	public static RemoteViews overridedBigContentView(Notification n) {
+		return n.extras.getParcelable(EXTRAS_BIG_CONTENT_VIEW_OVERRIDE);
+	}
+
+	public static RemoteViews overrideContentView(Notification n, RemoteViews remoteViews) {
+		n.extras.putParcelable(EXTRAS_CONTENT_VIEW_OVERRIDE, remoteViews);
+		return remoteViews;
+	}
+
+	public static RemoteViews overridedContentView(Notification n) {
+		return (RemoteViews)n.extras.getParcelable(EXTRAS_CONTENT_VIEW_OVERRIDE);
 	}
 
 	public static void setChannelId(Notification n, String channelId) {

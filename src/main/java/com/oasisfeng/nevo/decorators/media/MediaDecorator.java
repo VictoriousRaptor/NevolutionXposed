@@ -52,8 +52,6 @@ public class MediaDecorator extends NevoDecoratorService {
 		int[] array = extras.getIntArray(Notification.EXTRA_COMPACT_ACTIONS);
 		CharSequence title = extras.getCharSequence(Notification.EXTRA_TITLE, null);
 		CharSequence text = extras.getCharSequence(Notification.EXTRA_TEXT, null);
-		if (title == null)
-			Log.d(TAG, "extras " + extras);
 		int backgroundColor, textColor;
 		if (n.getLargeIcon() != null){
 			Bitmap bitmap = getLargeIcon(n);
@@ -102,9 +100,8 @@ public class MediaDecorator extends NevoDecoratorService {
 				remoteViews.setInt(id, "setBackgroundResource", selectableItemBackground);
 			};
 			int[] compacts = n.extras.getIntArray(Notification.EXTRA_COMPACT_ACTIONS);
-			if (n.contentView == null || XposedHelpers.getAdditionalInstanceField(n.contentView, "mark") == null) {
-				n.contentView = new RemoteViews(BuildConfig.APPLICATION_ID, R.layout.notifition_layout);
-				XposedHelpers.setAdditionalInstanceField(n.contentView, "mark", Boolean.TRUE);
+			if (overridedContentView(n) == null) {
+				n.contentView = overrideContentView(n, new RemoteViews(BuildConfig.APPLICATION_ID, R.layout.media_notifition_layout));
 			}
 			bindRemoteViews.bind(n.contentView);
 			if (n.actions != null) {
@@ -118,9 +115,8 @@ public class MediaDecorator extends NevoDecoratorService {
 			} else {
 				Log.d(TAG, "no action");
 			}
-			if (n.bigContentView == null || XposedHelpers.getAdditionalInstanceField(n.bigContentView, "mark") == null) {
-				n.bigContentView = new RemoteViews(BuildConfig.APPLICATION_ID, R.layout.notifition_layout_big);
-				XposedHelpers.setAdditionalInstanceField(n.bigContentView, "mark", Boolean.TRUE);
+			if (overridedBigContentView(n) == null) {
+				n.bigContentView = overrideBigContentView(n, new RemoteViews(BuildConfig.APPLICATION_ID, R.layout.media_notifition_layout_big));
 			}
 			bindRemoteViews.bind(n.bigContentView);
 			if (n.actions != null) {
@@ -139,9 +135,6 @@ public class MediaDecorator extends NevoDecoratorService {
 				Log.d(TAG, "no action");
 			}
 		} catch (PackageManager.NameNotFoundException ex) { Log.d(TAG, "package " + packageName + "not found"); }
-		// n.contentView = getContentView(title, text, n, evolved.getPackageName());
-		// n.bigContentView = getBigContentView(title, text, n, evolved.getPackageName());
-		extras.remove(Notification.EXTRA_TEMPLATE);
 		Log.d(TAG, "notification " + n);
 	}
 
