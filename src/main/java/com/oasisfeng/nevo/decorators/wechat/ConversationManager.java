@@ -60,9 +60,10 @@ class ConversationManager {
 			return previous_type;
 		}
 
-		boolean isGroupChat() { return mType == TYPE_GROUP_CHAT || mType == TYPE_GC_RECALL; }
-
-		boolean isRecall() { return mType == TYPE_DM_RECALL || mType == TYPE_GC_RECALL; }
+		static boolean isGroupChat(int mType) { return mType == TYPE_GROUP_CHAT || mType == TYPE_GC_RECALL; }
+		boolean isGroupChat() { return isGroupChat(mType); }
+		static boolean isRecall(int mType) { return mType == TYPE_DM_RECALL || mType == TYPE_GC_RECALL; }
+		boolean isRecall() { return isRecall(mType); }
 
 		CharSequence getTitle() { return mTitle; }
 

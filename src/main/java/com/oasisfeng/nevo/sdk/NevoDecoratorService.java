@@ -34,8 +34,8 @@ public abstract class NevoDecoratorService {
 
 	private static final String TAG = "NevoDecoratorService";
 
-	public static interface RecastAction {
-		public void recast(StatusBarNotification sbn);
+	protected interface BindRemoteViews {
+		void bind(RemoteViews remoteViews);
 	}
 
 	private static volatile Context appContext, packageContext;
@@ -143,8 +143,14 @@ public abstract class NevoDecoratorService {
 
 	@Keep public void onCreate() {}
 	@Keep public void onDestroy() {}
-	@Keep public void notificationChannels(NotificationManager nm) {}
-
+	
+	/**
+	 * 在应用进程中执行的通知预处理，某些功能（NotificationChannel等）在此实现。
+	 */
+	@Keep public void preApply(NotificationManager nm, String tag, int id, Notification n) {}
+	/**
+	 * 在系统UI（SystemUI）中执行的通知处理。
+	 */
 	@Keep public void apply(final StatusBarNotification evolving) {}
 	@Keep public void onNotificationRemoved(final StatusBarNotification evolving, final int reason) {
 		Log.d(TAG, "onNotificationRemoved(" + evolving + ", " + reason + ")");

@@ -127,15 +127,20 @@ class WeChatMessage {
 
 	static int guessConversationType(final Conversation conversation) {
 		final CharSequence content = conversation.summary;
-		if (content == null) return Conversation.TYPE_UNKNOWN;
 		final String ticker = conversation.ticker.toString().trim();	// Ticker text (may contain trailing spaces) always starts with sender (same as title for direct message, but not for group chat).
+		final CharSequence title = conversation.getTitle();
+		return guessConversationType(content, ticker, title);
+	}
+
+	static int guessConversationType(final CharSequence content, final String ticker, final CharSequence title) {
+		if (content == null) return Conversation.TYPE_UNKNOWN;
 		// Content text includes sender for group and service messages, but not for direct messages.
 		final int pos = TextUtils.indexOf(content, ticker.substring(0, Math.min(10, ticker.length())));    // Seek for the first 10 chars of ticker in content.
 		if (pos >= 0 && pos <= 6) {        // Max length (up to 999 unread): [999t]
 			// The content without unread count prefix, may or may not start with sender nick
 			final CharSequence message = pos > 0 && content.charAt(0) == '[' ? content.subSequence(pos, content.length()) : content;
 			// message.startsWith(title + SENDER_MESSAGE_SEPARATOR)
-			if (startsWith(message, conversation.getTitle(), SENDER_MESSAGE_SEPARATOR))		// The title of group chat is group name, not the message sender
+			if (startsWith(message, title, SENDER_MESSAGE_SEPARATOR))		// The title of group chat is group name, not the message sender
 				return Conversation.TYPE_DIRECT_MESSAGE;	// Most probably a direct message with more than 1 unread
 			return Conversation.TYPE_GROUP_CHAT;
 		} else if (TextUtils.indexOf(ticker, content) >= 0) {

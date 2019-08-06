@@ -83,6 +83,14 @@ class MessagingBuilder {
 	private static final String KEY_USERNAME = "key_username";
 	private static final String MENTION_SEPARATOR = " ";			// Separator between @nick and text. It's not a regular white space, but U+2005.
 
+	public static int guessType(String key) {
+		if (key.endsWith("@chatroom") || key.endsWith("@im.chatroom"/* WeWork */))
+			return Conversation.TYPE_GROUP_CHAT;
+		if (key.startsWith("gh_"))
+			return Conversation.TYPE_BOT_MESSAGE;
+		return Conversation.TYPE_DIRECT_MESSAGE;
+	}
+
 	/**
 	 * 从已存档消息重建会话
 	 * 
@@ -158,14 +166,7 @@ class MessagingBuilder {
 		if (conversation.key == null) try {
 			if (on_reply != null) on_reply.send(mContext, 0, null, (p, intent, r, d, b) -> {
 				final String key = conversation.key = intent.getStringExtra(KEY_USERNAME);	// setType() below will trigger rebuilding of conversation sender.
-				final int detected_type = key.endsWith("@chatroom") || key.endsWith("@im.chatroom"/* WeWork */)
-						? Conversation.TYPE_GROUP_CHAT : key.startsWith("gh_") ? Conversation.TYPE_BOT_MESSAGE : Conversation.TYPE_DIRECT_MESSAGE;
-				final int previous_type = conversation.setType(detected_type);
-				if (BuildConfig.DEBUG && SDK_INT >= O && previous_type != Conversation.TYPE_UNKNOWN && detected_type != previous_type) {
-					final Notification clone = n.clone();
-					final Notification.Builder dn = Notification.Builder.recoverBuilder(mContext, clone).setStyle(null).setSubText(clone.tickerText);
-					mContext.getSystemService(NotificationManager.class).notify(key.hashCode(), dn.setChannelId(n.getChannelId()).build());
-				}
+				conversation.setType(guessType(key));
 			}, null);
 		} catch (final PendingIntent.CanceledException e) {
 			Log.e(TAG, "Error parsing reply intent.", e);

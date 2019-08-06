@@ -36,10 +36,6 @@ public class MediaDecorator extends NevoDecoratorService {
 		void bind(RemoteViews remoteViews, int id, Notification.Action action);
 	}
 
-	private interface BindRemoteViews {
-		void bind(RemoteViews remoteViews);
-	}
-
 	private static final String TAG = "MediaDecorator";
 
 	@Override public void apply(final StatusBarNotification evolved) {

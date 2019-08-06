@@ -1,6 +1,7 @@
 package com.oasisfeng.nevo.xposed;
 
 import android.app.Notification;
+import android.app.NotificationManager;
 import android.content.Context;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.NotificationListenerService.RankingMap;
@@ -10,10 +11,12 @@ import android.widget.RemoteViews;
 
 import androidx.annotation.Keep;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import com.oasisfeng.nevo.sdk.NevoDecoratorService;
 
@@ -35,40 +38,36 @@ public class MainHook implements IXposedHookLoadPackage {
 	private final NevoDecoratorService miui = new com.oasisfeng.nevo.decorators.MIUIDecorator();
 	private final NevoDecoratorService media = new com.oasisfeng.nevo.decorators.media.MediaDecorator();
 
-	private interface Then { void then(Class<?> clazz); }
-	private interface Inspect { void inspect(String method); }
-	private interface Inspector { void inspect(); }
-
 	@Keep
 	private static void inspect(XC_LoadPackage.LoadPackageParam loadPackageParam, String className, String... methods) {
 		try {
 			final Class<?> clazz = XposedHelpers.findClass(className, loadPackageParam.classLoader);
 			XposedBridge.log("inspect clazz: " + clazz + " " + loadPackageParam.packageName);
-			Inspect inspect = method -> {
-					XposedBridge.hookAllMethods(clazz, method, new XC_MethodHook() {
-						@Override
-						protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-							Log.d("inspect.method", loadPackageParam.packageName + " " + param.method.getName());
-							for (Object arg : param.args) {
-								Log.d("inspect.method", loadPackageParam.packageName + " arg " + arg);
-							}
-							// Log.d("inspect.method", loadPackageParam.packageName + " " + Log.getStackTraceString(new Exception()));
+			Consumer<String> inspect = method -> {
+				XposedBridge.hookAllMethods(clazz, method, new XC_MethodHook() {
+					@Override
+					protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+						Log.d("inspect.method", loadPackageParam.packageName + " " + param.method.getName());
+						for (Object arg : param.args) {
+							Log.d("inspect.method", loadPackageParam.packageName + " arg " + arg);
 						}
-					});
+						// Log.d("inspect.method", loadPackageParam.packageName + " " + Log.getStackTraceString(new Exception()));
+					}
+				});
 			};
 			for (String method : methods) {
-				inspect.inspect(method);
+				inspect.accept(method);
 			}
 		} catch (XposedHelpers.ClassNotFoundError e) { /* XposedBridge.log("ContextImpl hook failed"); */ }
 	}
 
 	@Keep
-	private static void inspectThen(XC_LoadPackage.LoadPackageParam loadPackageParam, String className, Then... thens) {
+	private static void inspectThen(XC_LoadPackage.LoadPackageParam loadPackageParam, String className, Consumer<Class<?>>... thens) {
 		try {
 			final Class<?> clazz = XposedHelpers.findClass(className, loadPackageParam.classLoader);
 			XposedBridge.log("inspect clazz: " + clazz + " " + loadPackageParam.packageName);
-			for (Then then : thens) {
-				then.then(clazz);
+			for (Consumer<Class<?>> then : thens) {
+				then.accept(clazz);
 			}
 		} catch (XposedHelpers.ClassNotFoundError e) { /* XposedBridge.log("ContextImpl hook failed"); */ }
 	}
@@ -189,15 +188,21 @@ public class MainHook implements IXposedHookLoadPackage {
 
 	private void hookWeChat(XC_LoadPackage.LoadPackageParam loadPackageParam) {
 		try {
-			final Class<?> clazz = XposedHelpers.findClass("com.tencent.mm.plugin.notification.PluginNotification", loadPackageParam.classLoader);
-			XposedBridge.log("PN clazz: " + clazz);
-			XposedBridge.hookAllConstructors(clazz, new XC_MethodHook() {
+			final Class<?> clazz = XposedHelpers.findClass("android.app.NotificationManager", loadPackageParam.classLoader);
+			XposedBridge.log("NM clazz: " + clazz);
+			Method method = XposedHelpers.findMethodExact(clazz, "notify", String.class, int.class, Notification.class);
+			XposedBridge.log("NM.notify: " + method);
+			XposedBridge.hookMethod(method, new XC_MethodHook() {
 				@Override
-				protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-					notificationChannels();
+				protected void beforeHookedMethod(MethodHookParam param) {
+					NotificationManager nm = (NotificationManager)param.thisObject;
+					String tag = (String)param.args[0];
+					int id = (int)param.args[1];
+					Notification n = (Notification)param.args[2];
+					preApply(nm, tag, id, n);
 				}
 			});
-		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("PluginNotification hook failed"); }
+		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("NotificationManager hook failed"); }
 	}
 	
 	private void onCreate(Context context) {
@@ -207,12 +212,21 @@ public class MainHook implements IXposedHookLoadPackage {
 		media.onCreate();
 	}
 	
-	private void notificationChannels() {
-		android.app.NotificationManager nm = (android.app.NotificationManager)NevoDecoratorService.getAppContext().getSystemService(Context.NOTIFICATION_SERVICE);
-		wechat.notificationChannels(nm);
+	private void preApply(NotificationManager nm, String tag, int id, Notification n) {
+		if (XposedHelpers.getAdditionalInstanceField(n, "pre-applied") != null) {
+			Log.d(TAG, "skip " + n);
+			return;
+		}
+		XposedHelpers.setAdditionalInstanceField(n, "pre-applied", true);
+		wechat.preApply(nm, tag, id, n);
 	}
 
 	private void onNotificationPosted(StatusBarNotification sbn) {
+		if (XposedHelpers.getAdditionalInstanceField(sbn, "applied") != null) {
+			Log.d(TAG, "skip " + sbn);
+			return;
+		}
+		XposedHelpers.setAdditionalInstanceField(sbn, "applied", true);
 		switch (sbn.getPackageName()) {
 			case "com.tencent.mm":
 			wechat.apply(sbn);
