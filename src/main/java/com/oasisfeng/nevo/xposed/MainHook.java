@@ -35,10 +35,10 @@ public class MainHook implements IXposedHookLoadPackage {
 	private static final String TAG = "MainHook";
 
 	private final NevoDecoratorService wechat = new com.oasisfeng.nevo.decorators.wechat.WeChatDecorator();
+	private final NevoDecoratorService wechatImage = new com.oasisfeng.nevo.decorators.wechat.WeChatImageDecorator();
 	private final NevoDecoratorService miui = new com.oasisfeng.nevo.decorators.MIUIDecorator();
 	private final NevoDecoratorService media = new com.oasisfeng.nevo.decorators.media.MediaDecorator();
 
-	@Keep
 	private static void inspect(XC_LoadPackage.LoadPackageParam loadPackageParam, String className, String... methods) {
 		try {
 			final Class<?> clazz = XposedHelpers.findClass(className, loadPackageParam.classLoader);
@@ -46,7 +46,7 @@ public class MainHook implements IXposedHookLoadPackage {
 			Consumer<String> inspect = method -> {
 				XposedBridge.hookAllMethods(clazz, method, new XC_MethodHook() {
 					@Override
-					protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+					protected void afterHookedMethod(MethodHookParam param) {
 						Log.d("inspect.method", loadPackageParam.packageName + " " + param.method.getName());
 						for (Object arg : param.args) {
 							Log.d("inspect.method", loadPackageParam.packageName + " arg " + arg);
@@ -73,7 +73,7 @@ public class MainHook implements IXposedHookLoadPackage {
 	}
 
 	@Override
-	public void handleLoadPackage(XC_LoadPackage.LoadPackageParam loadPackageParam) throws Throwable {
+	public void handleLoadPackage(XC_LoadPackage.LoadPackageParam loadPackageParam) {
 		switch (loadPackageParam.packageName) {
 			case "com.android.systemui":
 			hookSystemUI(loadPackageParam);
@@ -93,7 +93,7 @@ public class MainHook implements IXposedHookLoadPackage {
 		AtomicReference<NotificationListenerService> nlsRef = new AtomicReference<>();
 		final XC_MethodHook onNotificationPosted = new XC_MethodHook() { // 捕获通知到达
 			@Override
-			protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+			protected void beforeHookedMethod(MethodHookParam param) {
 				StatusBarNotification sbn = (StatusBarNotification)param.args[0];
 				// RankingMap rankingMap = (RankingMap)param.args[1];
 				Log.d(TAG, "onNotificationPosted");
@@ -101,7 +101,7 @@ public class MainHook implements IXposedHookLoadPackage {
 			}
 		}, onNotificationRemoved = new XC_MethodHook() { // 捕获通知移除
 			@Override
-			protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+			protected void beforeHookedMethod(MethodHookParam param) {
 				StatusBarNotification sbn = (StatusBarNotification)param.args[0];
 				// RankingMap rankingMap = (RankingMap)param.args[1];
 				// NotificationStats stats = (NotificationStats)param.args[2];
@@ -111,7 +111,7 @@ public class MainHook implements IXposedHookLoadPackage {
 			}
 		}, nls = new XC_MethodHook() { // 捕获NotificationListenerService的具体实现
 			@Override
-			protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+			protected void afterHookedMethod(MethodHookParam param) {
 				// XposedBridge.log("nls constructor " + param.thisObject);
 				NotificationListenerService nls = (NotificationListenerService)param.thisObject;
 				if (nlsRef.compareAndSet(null, nls)) {
@@ -140,7 +140,7 @@ public class MainHook implements IXposedHookLoadPackage {
 			AtomicReference<Context> ref = new AtomicReference<>();
 			XposedBridge.hookAllMethods(clazz, "createAppContext", new XC_MethodHook() {
 				@Override
-				protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+				protected void afterHookedMethod(MethodHookParam param) {
 					Context context = (Context)param.getResult();
 					if (ref.compareAndSet(null, context)) {
 						XposedBridge.log("onCreate " + context);
@@ -155,7 +155,7 @@ public class MainHook implements IXposedHookLoadPackage {
 			// 让应用了Notification.Style的通知也可以自定义视图
 			XposedBridge.hookAllMethods(clazz, "createContentView", new XC_MethodHook() {
 				@Override
-				protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+				protected void beforeHookedMethod(MethodHookParam param) {
 					// Log.d("inspect", "createContentView");
 					Notification.Builder builder = (Notification.Builder)param.thisObject;
 					// Notification.Style style = (Notification.Style)XposedHelpers.getObjectField(builder, "mStyle");
@@ -170,7 +170,7 @@ public class MainHook implements IXposedHookLoadPackage {
 			});
 			XposedBridge.hookAllMethods(clazz, "createBigContentView", new XC_MethodHook() {
 				@Override
-				protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+				protected void beforeHookedMethod(MethodHookParam param) {
 					// Log.d("inspect", "createContentView");
 					Notification.Builder builder = (Notification.Builder)param.thisObject;
 					// Notification.Style style = (Notification.Style)XposedHelpers.getObjectField(builder, "mStyle");
@@ -203,15 +203,31 @@ public class MainHook implements IXposedHookLoadPackage {
 				}
 			});
 		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("NotificationManager hook failed"); }
+		wechatImage.hook(loadPackageParam);
+		/* inspectThen(loadPackageParam,
+				"java.io.FileOutputStream",
+				clazz -> {
+					XposedBridge.hookAllConstructors(clazz, new XC_MethodHook() {
+						@Override
+						protected void afterHookedMethod(MethodHookParam param) {
+							for (Object arg : param.args) {
+								Log.d("inspect.constructor", "arg " + arg);
+							}
+							Log.d("inspect", "this " + param.thisObject);
+						}
+					});
+				}); */
 	}
 	
 	private void onCreate(Context context) {
 		NevoDecoratorService.setAppContext(context);
 		wechat.onCreate();
+		wechatImage.onCreate();
 		miui.onCreate();
 		media.onCreate();
 	}
 	
+	// TODO
 	private void preApply(NotificationManager nm, String tag, int id, Notification n) {
 		if (XposedHelpers.getAdditionalInstanceField(n, "pre-applied") != null) {
 			Log.d(TAG, "skip " + n);
@@ -219,6 +235,7 @@ public class MainHook implements IXposedHookLoadPackage {
 		}
 		XposedHelpers.setAdditionalInstanceField(n, "pre-applied", true);
 		wechat.preApply(nm, tag, id, n);
+		wechatImage.preApply(nm, tag, id, n);
 	}
 
 	private void onNotificationPosted(StatusBarNotification sbn) {
@@ -230,6 +247,7 @@ public class MainHook implements IXposedHookLoadPackage {
 		switch (sbn.getPackageName()) {
 			case "com.tencent.mm":
 			wechat.apply(sbn);
+			wechatImage.apply(sbn);
 			break;
 			case "com.xiaomi.xmsf":
 			miui.apply(sbn);
@@ -242,6 +260,7 @@ public class MainHook implements IXposedHookLoadPackage {
 		switch (sbn.getPackageName()) {
 			case "com.tencent.mm":
 			wechat.onNotificationRemoved(sbn, reason);
+			wechatImage.onNotificationRemoved(sbn, reason);
 			break;
 			case "com.xiaomi.xmsf":
 			miui.onNotificationRemoved(sbn, reason);
