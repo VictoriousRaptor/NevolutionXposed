@@ -41,7 +41,7 @@ public class MediaDecorator extends NevoDecoratorService {
 	@Override public void apply(final StatusBarNotification evolved) {
 		final Notification n = evolved.getNotification();
 		if (!isMediaNotification(n)) {
-			Log.d(TAG, "not media notification");
+			// Log.d(TAG, "not media notification");
 			return;
 		}
 		Bundle extras = n.extras;

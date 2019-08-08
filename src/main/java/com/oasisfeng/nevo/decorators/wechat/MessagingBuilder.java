@@ -188,6 +188,7 @@ class MessagingBuilder {
 			final String participant = convs.getParticipant();	// No need to getParticipants() due to actually only one participant at most, see CarExtender.Builder().
 			if (participant != null) reply_remote_input.setLabel(participant);
 
+			// 回复
 			final Action.Builder reply_action = new Action.Builder(null, mPackageContext.getString(R.string.action_reply), proxy)
 					.addRemoteInput(reply_remote_input.build()).setAllowGeneratedReplies(true);
 			if (SDK_INT >= P) reply_action.setSemanticAction(Action.SEMANTIC_ACTION_REPLY);

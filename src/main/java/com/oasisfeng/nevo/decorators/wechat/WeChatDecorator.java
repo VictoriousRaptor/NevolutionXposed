@@ -106,30 +106,58 @@ public class WeChatDecorator extends NevoDecoratorService {
 		if (title != (title = EmojiTranslator.translate(title))) extras.putCharSequence(Notification.EXTRA_TITLE, title);
 
 		String channel_id = SDK_INT >= O ? n.getChannelId() : null;
-		final CharSequence content_text = extras.getCharSequence(Notification.EXTRA_TEXT);
-		boolean is_recall = false;
-		String recaller = null;
-		if (CHANNEL_MISC.equals(channel_id)) {	// Misc. notifications on Android 8+.
-			return;
-		} else if (n.tickerText == null) {		// Legacy misc. notifications.
-			if (SDK_INT >= O && channel_id == null) setChannelId(n, CHANNEL_MISC);
-			Matcher matcher = pattern.matcher(content_text);
-			if (matcher.matches()) {
-				// 撤回
-				// Log.d(TAG, matcher.group(0) + ", " + matcher.group(1) + ", " + matcher.group(2) + ", " + matcher.group(3));
-				is_recall = true;
-				recaller = matcher.group(3);
-			} else {
-				Log.d(TAG, "Skip further process for non-conversation notification: " + title);    // E.g. web login confirmation notification.
-				return;
+		if (CHANNEL_MISC.equals(channel_id)) return;	// Misc. notifications on Android 8+.
+		
+		final CharSequence text = extras.getCharSequence(Notification.EXTRA_TEXT);
+		String content = text != null ? text.toString() : null;
+		// [2条]...
+		if (content != null && content.startsWith("[")) {
+			// Log.d("inspect", "content " + content);
+			final int end = content.indexOf(']');
+			if (content.charAt(end - 1) == '条') {
+				n.number = Integer.parseInt(content.substring(1, end - 1));
+				// Log.d("inspect", "n.number " + n.number);
+				content = content.substring(end + 1);
 			}
 		}
-		if (content_text == null) return;
+		// 撤回...
 		int type = Conversation.TYPE_UNKNOWN;
-		if (is_recall)
-			type = (recaller == null) ? Conversation.TYPE_DM_RECALL : Conversation.TYPE_GC_RECALL;
-		else if (type == Conversation.TYPE_UNKNOWN)
-			type = WeChatMessage.guessConversationType(content_text, n.tickerText.toString().trim(), title);
+		if (content != null && content.contains("撤回")) {
+			boolean is_recall = false;
+			String recaller = null;
+			// Log.d("inspect", "content " + content);
+			if (CHANNEL_MISC.equals(channel_id)) {	// Misc. notifications on Android 8+.
+				return;
+			} else if (n.tickerText == null) {		// Legacy misc. notifications.
+				if (SDK_INT >= O && channel_id == null) setChannelId(n, CHANNEL_MISC);
+				Matcher matcher = pattern.matcher(content);
+				if (matcher.matches()) {
+					// 撤回
+					// Log.d(TAG, matcher.group(0) + ", " + matcher.group(1) + ", " + matcher.group(2) + ", " + matcher.group(3));
+					is_recall = true;
+					recaller = matcher.group(3);
+					extras.putBoolean("nevo.wechat.recall", true);
+					extras.putString("nevo.wechat.recaller", recaller);
+					Log.d("inspect", "recaller " + recaller);
+				} else {
+					Log.d(TAG, "Skip further process for non-conversation notification: " + title);    // E.g. web login confirmation notification.
+					return;
+				}
+			}
+			if (is_recall) type = (recaller == null) ? Conversation.TYPE_DM_RECALL : Conversation.TYPE_GC_RECALL;
+		}
+		if (content == null || content.isEmpty()) return;
+
+		extras.putCharSequence(Notification.EXTRA_TEXT, content);
+
+		int sep = content.indexOf(WeChatMessage.SENDER_MESSAGE_SEPARATOR);
+		if (sep > 0) {
+			String person = content.substring(0, sep);
+			String msg = content.substring(sep + WeChatMessage.SENDER_MESSAGE_SEPARATOR.length());
+			Log.d("inspect", person + "|" + msg); // TODO WeChatImage
+		}
+
+		if (type == Conversation.TYPE_UNKNOWN) type = WeChatMessage.guessConversationType(content, n.tickerText.toString().trim(), title);
 		final boolean is_group_chat = Conversation.isGroupChat(type);
 		if (SDK_INT >= O) {
 			if (extras.containsKey(KEY_SILENT_REVIVAL)) {
@@ -139,25 +167,28 @@ public class WeChatDecorator extends NevoDecoratorService {
 			if (is_group_chat && ! CHANNEL_DND.equals(channel_id)) setChannelId(n, CHANNEL_GROUP_CONVERSATION);
 			else if (channel_id == null) setChannelId(n, CHANNEL_MESSAGE);		// WeChat versions targeting O+ have its own channel for message
 		}
+
 		channel_id = n.getChannelId();
-		NotificationChannel channel = nm.getNotificationChannel(channel_id);
-		// Log.d("inspect", channel_id + " " + channel);
-		if (channel != null) return;
-		switch (channel_id) {
-			case CHANNEL_GROUP_CONVERSATION:
-			channel = makeChannel(CHANNEL_GROUP_CONVERSATION, R.string.channel_group_message, false);
-			break;
-			case CHANNEL_MESSAGE:
-			channel = migrate(nm, OLD_CHANNEL_MESSAGE,	CHANNEL_MESSAGE,	R.string.channel_message, false);
-			break;
-			case CHANNEL_MISC:
-			channel = migrate(nm, OLD_CHANNEL_MISC,		CHANNEL_MISC,		R.string.channel_misc, true);
-			break;
+		if (channel_id != null) { // 确保NotificationChannel存在
+			NotificationChannel channel = nm.getNotificationChannel(channel_id);
+			// Log.d("inspect", channel_id + " " + channel);
+			if (channel != null) return;
+			switch (channel_id) {
+				case CHANNEL_GROUP_CONVERSATION:
+				channel = makeChannel(CHANNEL_GROUP_CONVERSATION, R.string.channel_group_message, false);
+				break;
+				case CHANNEL_MESSAGE:
+				channel = migrate(nm, OLD_CHANNEL_MESSAGE,	CHANNEL_MESSAGE,	R.string.channel_message, false);
+				break;
+				case CHANNEL_MISC:
+				channel = migrate(nm, OLD_CHANNEL_MISC,		CHANNEL_MISC,		R.string.channel_misc, true);
+				break;
+			}
+			// Log.d("inspect.0", channel_id + " " + channel);
+			nm.createNotificationChannel(channel);
+			channel = nm.getNotificationChannel(channel_id);
+			// Log.d("inspect.1", channel_id + " " + channel);
 		}
-		// Log.d("inspect.0", channel_id + " " + channel);
-		nm.createNotificationChannel(channel);
-		channel = nm.getNotificationChannel(channel_id);
-		// Log.d("inspect.1", channel_id + " " + channel);
 	}
 
 	@Override public void apply(final StatusBarNotification evolving) {
@@ -187,22 +218,13 @@ public class WeChatDecorator extends NevoDecoratorService {
 
 		final String channel_id = SDK_INT >= O ? n.getChannelId() : null;
 		final CharSequence content_text = extras.getCharSequence(Notification.EXTRA_TEXT);
-		boolean is_recall = false;
-		String recaller = null;
+		Log.d("inspect", "content_text " + content_text);
+		boolean is_recall = extras.getBoolean("nevo.wechat.recall");
+		String recaller = extras.getString("nevo.wechat.recaller");
 		if (CHANNEL_MISC.equals(channel_id)) {	// Misc. notifications on Android 8+.
-			if (SDK_INT >= O && (n.flags & Notification.FLAG_ONGOING_EVENT) != 0) {
-				VoiceCall.tweakIfNeeded(context, n);
-			} else Log.d(TAG, "Skip further process for non-conversation notification: " + title);    // E.g. web login confirmation notification.
 			return;
 		} else if (n.tickerText == null) {		// Legacy misc. notifications.
-			// if (SDK_INT >= O && channel_id == null) setChannelId(n, CHANNEL_MISC);
-			Matcher matcher = pattern.matcher(content_text);
-			if (matcher.matches()) {
-				// 撤回
-				// Log.d(TAG, matcher.group(0) + ", " + matcher.group(1) + ", " + matcher.group(2) + ", " + matcher.group(3));
-				is_recall = true;
-				recaller = matcher.group(3);
-			} else {
+			if (!is_recall) {
 				Log.d(TAG, "Skip further process for non-conversation notification: " + title);    // E.g. web login confirmation notification.
 				return;
 			}
@@ -211,9 +233,8 @@ public class WeChatDecorator extends NevoDecoratorService {
 
 		// WeChat previously uses dynamic counter starting from 4097 as notification ID, which is reused after cancelled by WeChat itself,
 		//   causing conversation duplicate or overwritten notifications.
-		final String pkg = evolving.getPackageName();
 		final Conversation conversation;
-		if (! isDistinctId(n, pkg)) {
+		if (! isDistinctId(n, evolving.getPackageName())) {
 			final int title_hash = title.hashCode();	// Not using the hash code of original title, which might have already evolved.
 			setId(evolving, title_hash);
 			conversation = mConversationManager.getConversation(title_hash);
@@ -255,12 +276,6 @@ public class WeChatDecorator extends NevoDecoratorService {
 		if (SDK_INT >= N && extras.getCharSequenceArray(Notification.EXTRA_REMOTE_INPUT_HISTORY) != null)
 			n.flags |= Notification.FLAG_ONLY_ALERT_ONCE;		// No more alert for direct-replied notification.
 
-		MessagingStyle.Message message = messages.get(messages.size() - 1);
-		CharSequence person = message.getSender(), text0 = message.getText();
-		if (person != null)
-			extras.putCharSequence(Notification.EXTRA_TEXT, person + "：" + text0);
-		else
-			extras.putCharSequence(Notification.EXTRA_TEXT, text0);
 
 		// fix for recent (around 20190720) MIUI bugs
 		CharSequence text = extras.getCharSequence(Notification.EXTRA_TEXT, null);
@@ -383,13 +398,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 		return SDK_INT >= N ? PreferenceManager.getDefaultSharedPreferencesName(context) : context.getPackageName() + "_preferences";
 	}
 
-	private final BroadcastReceiver mPackageEventReceiver = new BroadcastReceiver() { @Override public void onReceive(final Context context, final Intent intent) {
-		if (intent.getData() != null && WECHAT_PACKAGE.equals(intent.getData().getSchemeSpecificPart())) mDistinctIdSupported = null;
-	}};
 
-	private final BroadcastReceiver mSettingsChangedReceiver = new BroadcastReceiver() { @Override public void onReceive(final Context context, final Intent intent) {
-		loadPreferences();
-	}};
 
 	private final ConversationManager mConversationManager = new ConversationManager();
 	private MessagingBuilder mMessagingBuilder;

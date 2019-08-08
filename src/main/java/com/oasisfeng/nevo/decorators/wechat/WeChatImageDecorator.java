@@ -58,7 +58,7 @@ public class WeChatImageDecorator extends NevoDecoratorService {
 				long created = now();
 				XposedHelpers.setAdditionalInstanceField(param.thisObject, "path", path);
 				XposedHelpers.setAdditionalInstanceField(param.thisObject, "created", created);
-				Log.d("inspect.construct", created + " " + path);
+				// Log.d("inspect.construct", created + " " + path);
 			}
 		});
 		XposedHelpers.findAndHookMethod(clazz, "close", new XC_MethodHook() {
@@ -68,7 +68,7 @@ public class WeChatImageDecorator extends NevoDecoratorService {
 				if (path == null) return;
 				long created = (Long)XposedHelpers.getAdditionalInstanceField(param.thisObject, "created");
 				long closed = now();
-				Log.d("inspect.close", created + "=>" + closed + " " + path);
+				// Log.d("inspect.close", created + "=>" + closed + " " + path);
 				synchronized (this) {
 					mPath = path;
 					mCreated = created;
@@ -97,16 +97,16 @@ public class WeChatImageDecorator extends NevoDecoratorService {
 		final Bundle extras = n.extras;
 		String path = (String)extras.getString("nevo.wechat.image");
 		if (path == null) return;
-		Log.d("inspect", "path " + path);
+		// Log.d("inspect", "path " + path);
 		File file = new File(path);
 		// if (!file.exists()) file = new File(path + ".jpg");
-		if (!file.exists() && path.startsWith(PREFIX)) {
+		if (!file.exists() && path.startsWith(PREFIX)) { // StorageRedirect
 			path = "/storage/emulated/0/Android/data/com.tencent.mm/sdcard/" + path.substring(PREFIX.length());
-			Log.d("inspect", "path " + path);
+			// Log.d("inspect", "path " + path);
 			file = new File(path);
 		}
 		// if (!file.exists()) file = new File(path + ".jpg");
-		Log.d("inspect", "file " + file.exists());
+		// Log.d("inspect", "file " + file.exists());
 		if (!file.exists()) return;
 
 		String template = extras.getString(Notification.EXTRA_TEMPLATE);
