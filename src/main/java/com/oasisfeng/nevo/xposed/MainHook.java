@@ -35,7 +35,6 @@ public class MainHook implements IXposedHookLoadPackage {
 	private static final String TAG = "MainHook";
 
 	private final NevoDecoratorService wechat = new com.oasisfeng.nevo.decorators.wechat.WeChatDecorator();
-	private final NevoDecoratorService wechatImage = new com.oasisfeng.nevo.decorators.wechat.WeChatImageDecorator();
 	private final NevoDecoratorService miui = new com.oasisfeng.nevo.decorators.MIUIDecorator();
 	private final NevoDecoratorService media = new com.oasisfeng.nevo.decorators.media.MediaDecorator();
 
@@ -203,7 +202,7 @@ public class MainHook implements IXposedHookLoadPackage {
 				}
 			});
 		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("NotificationManager hook failed"); }
-		wechatImage.hook(loadPackageParam);
+		wechat.hook(loadPackageParam);
 		/* inspectThen(loadPackageParam,
 				"java.io.FileOutputStream",
 				clazz -> {
@@ -222,7 +221,6 @@ public class MainHook implements IXposedHookLoadPackage {
 	private void onCreate(Context context) {
 		NevoDecoratorService.setAppContext(context);
 		wechat.onCreate();
-		wechatImage.onCreate();
 		miui.onCreate();
 		media.onCreate();
 	}
@@ -235,7 +233,6 @@ public class MainHook implements IXposedHookLoadPackage {
 		}
 		XposedHelpers.setAdditionalInstanceField(n, "pre-applied", true);
 		wechat.preApply(nm, tag, id, n);
-		wechatImage.preApply(nm, tag, id, n);
 	}
 
 	private void onNotificationPosted(StatusBarNotification sbn) {
@@ -247,7 +244,6 @@ public class MainHook implements IXposedHookLoadPackage {
 		switch (sbn.getPackageName()) {
 			case "com.tencent.mm":
 			wechat.apply(sbn);
-			wechatImage.apply(sbn);
 			break;
 			case "com.xiaomi.xmsf":
 			miui.apply(sbn);
@@ -260,7 +256,6 @@ public class MainHook implements IXposedHookLoadPackage {
 		switch (sbn.getPackageName()) {
 			case "com.tencent.mm":
 			wechat.onNotificationRemoved(sbn, reason);
-			wechatImage.onNotificationRemoved(sbn, reason);
 			break;
 			case "com.xiaomi.xmsf":
 			miui.onNotificationRemoved(sbn, reason);

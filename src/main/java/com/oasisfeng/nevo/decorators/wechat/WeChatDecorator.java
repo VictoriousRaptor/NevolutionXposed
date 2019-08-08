@@ -26,10 +26,13 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Parcelable;
 import android.os.Process;
 import android.preference.PreferenceManager;
 import android.provider.Settings;
@@ -37,6 +40,7 @@ import android.service.notification.StatusBarNotification;
 import android.util.Log;
 import android.widget.RemoteViews;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -57,14 +61,18 @@ import androidx.core.app.NotificationCompat.MessagingStyle;
 import static android.os.Build.VERSION.SDK_INT;
 import static android.os.Build.VERSION_CODES.N;
 import static android.os.Build.VERSION_CODES.O;
+import static android.os.Build.VERSION_CODES.P;
 import static android.service.notification.NotificationListenerService.REASON_APP_CANCEL;
 import static android.service.notification.NotificationListenerService.REASON_CANCEL;
 import static android.service.notification.NotificationListenerService.REASON_CHANNEL_BANNED;
 
+import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XposedBridge;
+import de.robv.android.xposed.XposedHelpers;
+import de.robv.android.xposed.callbacks.XC_LoadPackage;
+
 import com.oasisfeng.nevo.decorators.wechat.ConversationManager.Conversation;
 import com.oasisfeng.nevo.sdk.NevoDecoratorService;
-
-import de.robv.android.xposed.XposedHelpers;
 
 import com.oasisfeng.nevo.xposed.BuildConfig;
 import com.oasisfeng.nevo.xposed.R;
@@ -73,6 +81,12 @@ import com.oasisfeng.nevo.xposed.R;
  * Bring state-of-art notification experience to WeChat.
  *
  * Created by Oasis on 2015/6/1.
+ *
+ * @class WeChatImageDecorator.
+ * 
+ * Created by Oasis on 2018-11-30.
+ * Modify by Kr328 on 2019-1-5
+ * Modify by notXX on 2019-8-5
  */
 public class WeChatDecorator extends NevoDecoratorService {
 
@@ -93,6 +107,46 @@ public class WeChatDecorator extends NevoDecoratorService {
 	static final String ACTION_SETTINGS_CHANGED = "SETTINGS_CHANGED";
 	static final String ACTION_DEBUG_NOTIFICATION = "DEBUG";
 	private static final String KEY_SILENT_REVIVAL = "nevo.wechat.revival";
+	private static final String EXTRA_RECALL = "nevo.wechat.recall";
+	private static final String EXTRA_RECALLER = "nevo.wechat.recaller";
+	private static final String EXTRA_PICTURE_PATH = "nevo.wechat.picturePath";
+	private static final String EXTRA_PICTURE = "nevo.wechat.picture";
+	private static final String STORAGE_PREFIX = "/storage/emulated/0/";
+
+	private static String mPath;
+	private static long mCreated, mClosed;
+
+	private static long now() { return System.currentTimeMillis(); }
+
+	@Override public void hook(XC_LoadPackage.LoadPackageParam loadPackageParam) {
+		Class<?> clazz = java.io.FileOutputStream.class;
+		XposedHelpers.findAndHookConstructor(clazz, String.class, boolean.class, new XC_MethodHook() {
+			@Override
+			protected void beforeHookedMethod(MethodHookParam param) {
+				String path = (String)param.args[0];
+				if (path == null || !path.contains("/image2/")) return;
+				long created = now();
+				XposedHelpers.setAdditionalInstanceField(param.thisObject, "path", path);
+				XposedHelpers.setAdditionalInstanceField(param.thisObject, "created", created);
+				// Log.d("inspect.construct", created + " " + path);
+			}
+		});
+		XposedHelpers.findAndHookMethod(clazz, "close", new XC_MethodHook() {
+			@Override
+			protected void afterHookedMethod(MethodHookParam param) {
+				String path = (String)XposedHelpers.getAdditionalInstanceField(param.thisObject, "path");
+				if (path == null) return;
+				long created = (Long)XposedHelpers.getAdditionalInstanceField(param.thisObject, "created");
+				long closed = now();
+				// Log.d("inspect.close", created + "=>" + closed + " " + path);
+				synchronized (this) {
+					mPath = path;
+					mCreated = created;
+					mClosed = closed;
+				}
+			}
+		});
+	}
 
 	@Override public void preApply(NotificationManager nm, String tag, int id, Notification n) {
 		mWeChatTargetingO = isWeChatTargeting26OrAbove();
@@ -136,8 +190,8 @@ public class WeChatDecorator extends NevoDecoratorService {
 					// Log.d(TAG, matcher.group(0) + ", " + matcher.group(1) + ", " + matcher.group(2) + ", " + matcher.group(3));
 					is_recall = true;
 					recaller = matcher.group(3);
-					extras.putBoolean("nevo.wechat.recall", true);
-					extras.putString("nevo.wechat.recaller", recaller);
+					extras.putBoolean(EXTRA_RECALL, true);
+					extras.putString(EXTRA_RECALLER, recaller);
 					Log.d("inspect", "recaller " + recaller);
 				} else {
 					Log.d(TAG, "Skip further process for non-conversation notification: " + title);    // E.g. web login confirmation notification.
@@ -154,7 +208,14 @@ public class WeChatDecorator extends NevoDecoratorService {
 		if (sep > 0) {
 			String person = content.substring(0, sep);
 			String msg = content.substring(sep + WeChatMessage.SENDER_MESSAGE_SEPARATOR.length());
-			Log.d("inspect", person + "|" + msg); // TODO WeChatImage
+			// Log.d("inspect", person + "|" + msg);
+			if ("[图片]".equals(msg) && mPath != null && mClosed - now() < 1000) {
+				synchronized (this) {
+					// Log.d("inspect", "putString " + mPath);
+					extras.putString(EXTRA_PICTURE_PATH, mPath); // 保存图片地址
+					mPath = null;
+				}
+			}
 		}
 
 		if (type == Conversation.TYPE_UNKNOWN) type = WeChatMessage.guessConversationType(content, n.tickerText.toString().trim(), title);
@@ -218,9 +279,9 @@ public class WeChatDecorator extends NevoDecoratorService {
 
 		final String channel_id = SDK_INT >= O ? n.getChannelId() : null;
 		final CharSequence content_text = extras.getCharSequence(Notification.EXTRA_TEXT);
-		Log.d("inspect", "content_text " + content_text);
-		boolean is_recall = extras.getBoolean("nevo.wechat.recall");
-		String recaller = extras.getString("nevo.wechat.recaller");
+		// Log.d("inspect", "content_text " + content_text);
+		boolean is_recall = extras.getBoolean(EXTRA_RECALL);
+		String recaller = extras.getString(EXTRA_RECALLER);
 		if (CHANNEL_MISC.equals(channel_id)) {	// Misc. notifications on Android 8+.
 			return;
 		} else if (n.tickerText == null) {		// Legacy misc. notifications.
@@ -253,14 +314,6 @@ public class WeChatDecorator extends NevoDecoratorService {
 		extras.putBoolean(Notification.EXTRA_SHOW_WHEN, true);
 		if (mPreferences.getBoolean(mPrefKeyWear, false)) n.flags &= ~ Notification.FLAG_LOCAL_ONLY;
 		setSortKey(n, String.valueOf(Long.MAX_VALUE - n.when + (is_group_chat ? GROUP_CHAT_SORT_KEY_SHIFT : 0))); // Place group chat below other messages
-		// if (SDK_INT >= O) {
-		// 	if (extras.containsKey(KEY_SILENT_REVIVAL)) {
-		// 		setGroup(n,"nevo.group.auto");	// Special group name to let Nevolution auto-group it as if not yet grouped. (To be standardized in SDK)
-		// 		setGroupAlertBehavior(n, Notification.GROUP_ALERT_SUMMARY);		// This trick makes notification silent
-		// 	}
-		// 	if (is_group_chat && ! CHANNEL_DND.equals(channel_id)) setChannelId(n, CHANNEL_GROUP_CONVERSATION);
-		// 	else if (channel_id == null) setChannelId(n, CHANNEL_MESSAGE);		// WeChat versions targeting O+ have its own channel for message
-		// }
 
 		MessagingStyle messaging = mMessagingBuilder.buildFromExtender(conversation, evolving, title, getArchivedNotifications(getOriginalKey(evolving), MAX_NUM_ARCHIVED)); // build message from android auto
 		if (messaging == null)	// EXTRA_TEXT will be written in buildFromArchive()
@@ -276,17 +329,75 @@ public class WeChatDecorator extends NevoDecoratorService {
 		if (SDK_INT >= N && extras.getCharSequenceArray(Notification.EXTRA_REMOTE_INPUT_HISTORY) != null)
 			n.flags |= Notification.FLAG_ONLY_ALERT_ONCE;		// No more alert for direct-replied notification.
 
+		String path = extras.getString(EXTRA_PICTURE_PATH);
+		if (path != null) {
+			// Log.d("inspect", "path " + path);
+			File file = new File(path);
+			if (!file.exists() && path.startsWith(STORAGE_PREFIX)) { // StorageRedirect
+				path = "/storage/emulated/0/Android/data/com.tencent.mm/sdcard/" + path.substring(STORAGE_PREFIX.length());
+				// Log.d("inspect", "path " + path);
+				file = new File(path);
+			}
+			// Log.d("inspect", path + " " + file.exists());
+			if (file.exists()) {
+				// TODO zoom
+				// extras.putParcelable(Notification.EXTRA_PICTURE, BitmapFactory.decodeFile(path));
+				// extras.putString(Notification.EXTRA_TEMPLATE, TEMPLATE_BIG_PICTURE);
+				String template = extras.getString(Notification.EXTRA_TEMPLATE);
+				extras.putString(EXTRA_PICTURE, path);
+				// Log.d("inspect", path + " " + template);
+				switch (template) {
+					case TEMPLATE_MESSAGING:
+					handleMessaging(n, Uri.fromFile(file));
+					break;
+					case TEMPLATE_BIG_TEXT:
+					handleBigText(n, path, content_text);
+					break;
+				}
+			}
+		}
 
 		// fix for recent (around 20190720) MIUI bugs
-		CharSequence text = extras.getCharSequence(Notification.EXTRA_TEXT, null);
 		if (overridedContentView(n) == null) {
 			n.contentView = overrideContentView(n, new RemoteViews(BuildConfig.APPLICATION_ID, R.layout.wechat_notifition_layout));
 		}
 		n.contentView.setTextViewText(R.id.title, title);
-		n.contentView.setTextViewText(R.id.subtitle, text);
+		n.contentView.setTextViewText(R.id.subtitle, content_text);
 		n.contentView.setImageViewIcon(R.id.smallIcon, n.getSmallIcon());
 		n.contentView.setImageViewIcon(R.id.largeIcon, n.getLargeIcon());
 		n.contentView.setInt(R.id.smallIcon, "setColorFilter", PRIMARY_COLOR);
+	}
+	
+	private static final String KEY_DATA_MIME_TYPE = "type";
+	private static final String KEY_DATA_URI= "uri";
+
+	/**
+	 * 在会话式通知中显示图片
+	 */
+	private void handleMessaging(Notification n, Uri path) {
+		Parcelable[] messages = n.extras.getParcelableArray(Notification.EXTRA_MESSAGES);
+		if ( SDK_INT < P || messages == null || messages.length < 1 ) return;
+		int index = messages.length - 1;
+		Object last_message = messages[index];
+		if (!(last_message instanceof Bundle)) return;
+
+		Bundle data = (Bundle)last_message;
+		data.putString(KEY_DATA_MIME_TYPE, "image/jpeg");
+		data.putParcelable(KEY_DATA_URI, path);
+		// Log.d("inspect", "data " + data);
+
+		n.extras.putParcelableArray(Notification.EXTRA_MESSAGES, messages);
+	}
+
+	/**
+	 * 在文字式通知中显示图片
+	 */
+	private void handleBigText(Notification n, String path, CharSequence text) {
+		final BitmapFactory.Options options = new BitmapFactory.Options();
+		options.inPreferredConfig = SDK_INT >= O ? Bitmap.Config.HARDWARE : Bitmap.Config.ARGB_8888;
+		n.extras.putString(Notification.EXTRA_TEMPLATE, TEMPLATE_BIG_PICTURE);
+		n.extras.putParcelable(Notification.EXTRA_PICTURE, BitmapFactory.decodeFile(path, options));
+		n.extras.putCharSequence(Notification.EXTRA_SUMMARY_TEXT, text);
 	}
 
 	private boolean isDistinctId(final Notification n, final String pkg) {
