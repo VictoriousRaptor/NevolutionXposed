@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import com.oasisfeng.nevo.sdk.NevoDecoratorService;
+import com.oasisfeng.nevo.xposed.BuildConfig;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
@@ -50,7 +51,7 @@ public class MainHook implements IXposedHookLoadPackage {
 						for (Object arg : param.args) {
 							Log.d("inspect.method", loadPackageParam.packageName + " arg " + arg);
 						}
-						// Log.d("inspect.method", loadPackageParam.packageName + " " + Log.getStackTraceString(new Exception()));
+						if (BuildConfig.DEBUG) Log.d(TAG, loadPackageParam.packageName + " " + Log.getStackTraceString(new Exception()));
 					}
 				});
 			};
@@ -151,15 +152,13 @@ public class MainHook implements IXposedHookLoadPackage {
 		try {
 			final Class<?> clazz = XposedHelpers.findClass("android.app.Notification$Builder", loadPackageParam.classLoader);
 			XposedBridge.log("Builder clazz: " + clazz);
-			// 让应用了Notification.Style的通知也可以自定义视图
+			// 强制自定义视图
 			XposedBridge.hookAllMethods(clazz, "createContentView", new XC_MethodHook() {
 				@Override
 				protected void beforeHookedMethod(MethodHookParam param) {
-					// Log.d("inspect", "createContentView");
+					if (BuildConfig.DEBUG) Log.d(TAG, "createContentView");
 					Notification.Builder builder = (Notification.Builder)param.thisObject;
-					// Notification.Style style = (Notification.Style)XposedHelpers.getObjectField(builder, "mStyle");
 					Notification n = (Notification)XposedHelpers.getObjectField(builder, "mN");
-					// Log.d("inspect", "mStyle/mN " + style + "/" + n + " " + (style instanceof Notification.MediaStyle));
 					RemoteViews remoteViews = NevoDecoratorService.overridedContentView(n);
 					if (remoteViews != null) {
 						Log.d(TAG, "cheating createContentView");
@@ -170,11 +169,9 @@ public class MainHook implements IXposedHookLoadPackage {
 			XposedBridge.hookAllMethods(clazz, "createBigContentView", new XC_MethodHook() {
 				@Override
 				protected void beforeHookedMethod(MethodHookParam param) {
-					// Log.d("inspect", "createContentView");
+					if (BuildConfig.DEBUG) Log.d(TAG, "createContentView");
 					Notification.Builder builder = (Notification.Builder)param.thisObject;
-					// Notification.Style style = (Notification.Style)XposedHelpers.getObjectField(builder, "mStyle");
 					Notification n = (Notification)XposedHelpers.getObjectField(builder, "mN");
-					// Log.d("inspect", "mStyle/mN " + style + "/" + n + " " + (style instanceof Notification.MediaStyle));
 					RemoteViews remoteViews = NevoDecoratorService.overridedBigContentView(n);
 					if (remoteViews != null) {
 						Log.d(TAG, "cheating createBigContentView");
@@ -202,20 +199,7 @@ public class MainHook implements IXposedHookLoadPackage {
 				}
 			});
 		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("NotificationManager hook failed"); }
-		wechat.hook(loadPackageParam);
-		/* inspectThen(loadPackageParam,
-				"java.io.FileOutputStream",
-				clazz -> {
-					XposedBridge.hookAllConstructors(clazz, new XC_MethodHook() {
-						@Override
-						protected void afterHookedMethod(MethodHookParam param) {
-							for (Object arg : param.args) {
-								Log.d("inspect.constructor", "arg " + arg);
-							}
-							Log.d("inspect", "this " + param.thisObject);
-						}
-					});
-				}); */
+		wechat.hook(loadPackageParam); // TODO
 	}
 	
 	private void onCreate(Context context) {

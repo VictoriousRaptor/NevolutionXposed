@@ -26,8 +26,6 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Bundle;
@@ -109,7 +107,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 	private static final String KEY_SILENT_REVIVAL = "nevo.wechat.revival";
 	private static final String EXTRA_RECALL = "nevo.wechat.recall";
 	private static final String EXTRA_RECALLER = "nevo.wechat.recaller";
-	private static final String EXTRA_PICTURE_PATH = "nevo.wechat.picturePath";
+	public static final String EXTRA_PICTURE_PATH = "nevo.wechat.picturePath";
 	private static final String EXTRA_PICTURE = "nevo.wechat.picture";
 	private static final String STORAGE_PREFIX = "/storage/emulated/0/";
 
@@ -128,7 +126,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 				long created = now();
 				XposedHelpers.setAdditionalInstanceField(param.thisObject, "path", path);
 				XposedHelpers.setAdditionalInstanceField(param.thisObject, "created", created);
-				// Log.d("inspect.construct", created + " " + path);
+				if (BuildConfig.DEBUG) Log.d(TAG, created + " " + path);
 			}
 		});
 		XposedHelpers.findAndHookMethod(clazz, "close", new XC_MethodHook() {
@@ -138,7 +136,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 				if (path == null) return;
 				long created = (Long)XposedHelpers.getAdditionalInstanceField(param.thisObject, "created");
 				long closed = now();
-				// Log.d("inspect.close", created + "=>" + closed + " " + path);
+				if (BuildConfig.DEBUG) Log.d(TAG, created + "=>" + closed + " " + path);
 				synchronized (this) {
 					mPath = path;
 					mCreated = created;
@@ -166,11 +164,11 @@ public class WeChatDecorator extends NevoDecoratorService {
 		String content = text != null ? text.toString() : null;
 		// [2条]...
 		if (content != null && content.startsWith("[")) {
-			// Log.d("inspect", "content " + content);
+			if (BuildConfig.DEBUG) Log.d(TAG, "content " + content);
 			final int end = content.indexOf(']');
 			if (content.charAt(end - 1) == '条') {
 				n.number = Integer.parseInt(content.substring(1, end - 1));
-				// Log.d("inspect", "n.number " + n.number);
+				if (BuildConfig.DEBUG) Log.d(TAG, "n.number " + n.number);
 				content = content.substring(end + 1);
 			}
 		}
@@ -179,7 +177,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 		if (content != null && content.contains("撤回")) {
 			boolean is_recall = false;
 			String recaller = null;
-			// Log.d("inspect", "content " + content);
+			if (BuildConfig.DEBUG) Log.d(TAG, "content " + content);
 			if (CHANNEL_MISC.equals(channel_id)) {	// Misc. notifications on Android 8+.
 				return;
 			} else if (n.tickerText == null) {		// Legacy misc. notifications.
@@ -192,7 +190,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 					recaller = matcher.group(3);
 					extras.putBoolean(EXTRA_RECALL, true);
 					extras.putString(EXTRA_RECALLER, recaller);
-					Log.d("inspect", "recaller " + recaller);
+					if (BuildConfig.DEBUG) Log.d(TAG, "recaller " + recaller);
 				} else {
 					Log.d(TAG, "Skip further process for non-conversation notification: " + title);    // E.g. web login confirmation notification.
 					return;
@@ -208,10 +206,10 @@ public class WeChatDecorator extends NevoDecoratorService {
 		if (sep > 0) {
 			String person = content.substring(0, sep);
 			String msg = content.substring(sep + WeChatMessage.SENDER_MESSAGE_SEPARATOR.length());
-			// Log.d("inspect", person + "|" + msg);
+			if (BuildConfig.DEBUG) Log.d(TAG, person + "|" + msg);
 			if ("[图片]".equals(msg) && mPath != null && mClosed - now() < 1000) {
 				synchronized (this) {
-					// Log.d("inspect", "putString " + mPath);
+					if (BuildConfig.DEBUG) Log.d(TAG, "putString " + mPath);
 					extras.putString(EXTRA_PICTURE_PATH, mPath); // 保存图片地址
 					mPath = null;
 				}
@@ -232,7 +230,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 		channel_id = n.getChannelId();
 		if (channel_id != null) { // 确保NotificationChannel存在
 			NotificationChannel channel = nm.getNotificationChannel(channel_id);
-			// Log.d("inspect", channel_id + " " + channel);
+			if (BuildConfig.DEBUG) Log.d(TAG, channel_id + " " + channel);
 			if (channel != null) return;
 			switch (channel_id) {
 				case CHANNEL_GROUP_CONVERSATION:
@@ -245,10 +243,10 @@ public class WeChatDecorator extends NevoDecoratorService {
 				channel = migrate(nm, OLD_CHANNEL_MISC,		CHANNEL_MISC,		R.string.channel_misc, true);
 				break;
 			}
-			// Log.d("inspect.0", channel_id + " " + channel);
+			if (BuildConfig.DEBUG) Log.d(TAG, channel_id + " " + channel);
 			nm.createNotificationChannel(channel);
 			channel = nm.getNotificationChannel(channel_id);
-			// Log.d("inspect.1", channel_id + " " + channel);
+			if (BuildConfig.DEBUG) Log.d(TAG, channel_id + " " + channel);
 		}
 	}
 
@@ -269,6 +267,18 @@ public class WeChatDecorator extends NevoDecoratorService {
 		final Bundle extras = n.extras;
 		final Context context = getPackageContext();
 
+		// 图片
+		if (extras.containsKey(EXTRA_PICTURE_PATH)) {
+			final String path = extras.getString(EXTRA_PICTURE_PATH);
+			File file = new File(path);
+			if (!file.exists() && path.startsWith(STORAGE_PREFIX)) { // StorageRedirect
+				// path = "/storage/emulated/0/Android/data/com.tencent.mm/sdcard/" + path.substring(STORAGE_PREFIX.length());
+				if (BuildConfig.DEBUG) Log.d(TAG, "path " + path);
+				file = new File(path.replace(STORAGE_PREFIX, "/storage/emulated/0/Android/data/com.tencent.mm/sdcard/"));
+			}
+			if (file.exists()) extras.putString(EXTRA_PICTURE_PATH, file.getPath()); // 更新文件路径
+		}
+
 		CharSequence title = extras.getCharSequence(Notification.EXTRA_TITLE);
 		if (title == null || title.length() == 0) {
 			Log.e(TAG, "Title is missing: " + evolving);
@@ -279,7 +289,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 
 		final String channel_id = SDK_INT >= O ? n.getChannelId() : null;
 		final CharSequence content_text = extras.getCharSequence(Notification.EXTRA_TEXT);
-		// Log.d("inspect", "content_text " + content_text);
+		if (BuildConfig.DEBUG) Log.d(TAG, "content_text " + content_text);
 		boolean is_recall = extras.getBoolean(EXTRA_RECALL);
 		String recaller = extras.getString(EXTRA_RECALLER);
 		if (CHANNEL_MISC.equals(channel_id)) {	// Misc. notifications on Android 8+.
@@ -329,34 +339,6 @@ public class WeChatDecorator extends NevoDecoratorService {
 		if (SDK_INT >= N && extras.getCharSequenceArray(Notification.EXTRA_REMOTE_INPUT_HISTORY) != null)
 			n.flags |= Notification.FLAG_ONLY_ALERT_ONCE;		// No more alert for direct-replied notification.
 
-		String path = extras.getString(EXTRA_PICTURE_PATH);
-		if (path != null) {
-			// Log.d("inspect", "path " + path);
-			File file = new File(path);
-			if (!file.exists() && path.startsWith(STORAGE_PREFIX)) { // StorageRedirect
-				path = "/storage/emulated/0/Android/data/com.tencent.mm/sdcard/" + path.substring(STORAGE_PREFIX.length());
-				// Log.d("inspect", "path " + path);
-				file = new File(path);
-			}
-			// Log.d("inspect", path + " " + file.exists());
-			if (file.exists()) {
-				// TODO zoom
-				// extras.putParcelable(Notification.EXTRA_PICTURE, BitmapFactory.decodeFile(path));
-				// extras.putString(Notification.EXTRA_TEMPLATE, TEMPLATE_BIG_PICTURE);
-				String template = extras.getString(Notification.EXTRA_TEMPLATE);
-				extras.putString(EXTRA_PICTURE, path);
-				// Log.d("inspect", path + " " + template);
-				switch (template) {
-					case TEMPLATE_MESSAGING:
-					handleMessaging(n, Uri.fromFile(file));
-					break;
-					case TEMPLATE_BIG_TEXT:
-					handleBigText(n, path, content_text);
-					break;
-				}
-			}
-		}
-
 		// fix for recent (around 20190720) MIUI bugs
 		if (overridedContentView(n) == null) {
 			n.contentView = overrideContentView(n, new RemoteViews(BuildConfig.APPLICATION_ID, R.layout.wechat_notifition_layout));
@@ -368,38 +350,6 @@ public class WeChatDecorator extends NevoDecoratorService {
 		n.contentView.setInt(R.id.smallIcon, "setColorFilter", PRIMARY_COLOR);
 	}
 	
-	private static final String KEY_DATA_MIME_TYPE = "type";
-	private static final String KEY_DATA_URI= "uri";
-
-	/**
-	 * 在会话式通知中显示图片
-	 */
-	private void handleMessaging(Notification n, Uri path) {
-		Parcelable[] messages = n.extras.getParcelableArray(Notification.EXTRA_MESSAGES);
-		if ( SDK_INT < P || messages == null || messages.length < 1 ) return;
-		int index = messages.length - 1;
-		Object last_message = messages[index];
-		if (!(last_message instanceof Bundle)) return;
-
-		Bundle data = (Bundle)last_message;
-		data.putString(KEY_DATA_MIME_TYPE, "image/jpeg");
-		data.putParcelable(KEY_DATA_URI, path);
-		// Log.d("inspect", "data " + data);
-
-		n.extras.putParcelableArray(Notification.EXTRA_MESSAGES, messages);
-	}
-
-	/**
-	 * 在文字式通知中显示图片
-	 */
-	private void handleBigText(Notification n, String path, CharSequence text) {
-		final BitmapFactory.Options options = new BitmapFactory.Options();
-		options.inPreferredConfig = SDK_INT >= O ? Bitmap.Config.HARDWARE : Bitmap.Config.ARGB_8888;
-		n.extras.putString(Notification.EXTRA_TEMPLATE, TEMPLATE_BIG_PICTURE);
-		n.extras.putParcelable(Notification.EXTRA_PICTURE, BitmapFactory.decodeFile(path, options));
-		n.extras.putCharSequence(Notification.EXTRA_SUMMARY_TEXT, text);
-	}
-
 	private boolean isDistinctId(final Notification n, final String pkg) {
 		if (mDistinctIdSupported != null) return mDistinctIdSupported;
 		int version = 0;
@@ -527,11 +477,14 @@ public class WeChatDecorator extends NevoDecoratorService {
 		return queue != null ? new ArrayList<>(queue) : new ArrayList<>();
 	}
 
-	private void recastNotification(final String key, final @Nullable Bundle fillInExtras) {
+	public static interface ModifyStatusBarNotification { void modify(StatusBarNotification sbn); }
+
+	private void recastNotification(final String key, final @Nullable Bundle fillInExtras, final ModifyStatusBarNotification... modifies) {
 		LinkedList<StatusBarNotification> queue = map.get(key);
 		if (queue == null) return;
 		StatusBarNotification sbn = queue.getLast();
-		sbn.getNotification().extras.putAll(fillInExtras);
+		if (fillInExtras != null) sbn.getNotification().extras.putAll(fillInExtras);
+		for (ModifyStatusBarNotification modify : modifies) modify.modify(sbn);
 		recastNotification(sbn);
 	}
 }

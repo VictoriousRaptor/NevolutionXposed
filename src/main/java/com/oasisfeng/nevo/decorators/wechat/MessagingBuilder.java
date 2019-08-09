@@ -12,6 +12,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.ContactsContract.Contacts;
@@ -53,6 +55,8 @@ import com.oasisfeng.nevo.xposed.BuildConfig;
 import com.oasisfeng.nevo.xposed.R;
 
 import static com.oasisfeng.nevo.decorators.wechat.WeChatMessage.SENDER_MESSAGE_SEPARATOR;
+import static com.oasisfeng.nevo.sdk.NevoDecoratorService.TEMPLATE_BIG_PICTURE;
+import static com.oasisfeng.nevo.sdk.NevoDecoratorService.TEMPLATE_MESSAGING;
 
 
 /**
@@ -66,6 +70,7 @@ class MessagingBuilder {
 
 	private static final String ACTION_REPLY = "REPLY";
 	private static final String ACTION_MENTION = "MENTION";
+	private static final String ACTION_ZOOM = "ZOOM";
 	private static final String SCHEME_KEY = "key";
 	private static final String EXTRA_REPLY_ACTION = "pending_intent";
 	private static final String EXTRA_RESULT_KEY = "result_key";
@@ -149,7 +154,7 @@ class MessagingBuilder {
 		final MessagingStyle messaging = new MessagingStyle(mUserSelf);
 		final boolean sender_inline = num_lines_with_colon == textArray.size();
 		for (int i = 0, size = textArray.size(); i < size; i++)	{		// All lines have colon in text
-			messaging.addMessage(buildMessage(conversation, textArray.keyAt(i), tickerArray.valueAt(i), textArray.valueAt(i), sender_inline ? null : title.toString(), mDefaultIcon));
+			messaging.addMessage(buildMessage(conversation, textArray.keyAt(i), tickerArray.valueAt(i), textArray.valueAt(i), sender_inline ? null : title.toString()));
 		}
 		return messaging;
 	}
@@ -173,12 +178,14 @@ class MessagingBuilder {
 		}
 
 		final MessagingStyle messaging = new MessagingStyle(mUserSelf);
-		final Message[] messages = WeChatMessage.buildFromCarConversation(conversation, convs, archive, mDefaultIcon);
+		final Message[] messages = WeChatMessage.buildFromCarConversation(conversation, convs, archive);
 		for (final Message message : messages) messaging.addMessage(message);
 
 		final PendingIntent on_read = convs.getReadPendingIntent();
 		if (on_read != null) mMarkReadPendingIntents.put(sbn.getKey(), on_read);	// Mapped by evolved key,
 
+		final List<Action> actions = new ArrayList<>();
+		// 回复
 		final RemoteInput remote_input;
 		if (SDK_INT >= N && on_reply != null && (remote_input = convs.getRemoteInput()) != null) {
 			final CharSequence[] input_history = n.extras.getCharSequenceArray(EXTRA_REMOTE_INPUT_HISTORY);
@@ -188,27 +195,23 @@ class MessagingBuilder {
 			final String participant = convs.getParticipant();	// No need to getParticipants() due to actually only one participant at most, see CarExtender.Builder().
 			if (participant != null) reply_remote_input.setLabel(participant);
 
-			// 回复
 			final Action.Builder reply_action = new Action.Builder(null, mPackageContext.getString(R.string.action_reply), proxy)
 					.addRemoteInput(reply_remote_input.build()).setAllowGeneratedReplies(true);
 			if (SDK_INT >= P) reply_action.setSemanticAction(Action.SEMANTIC_ACTION_REPLY);
-			WeChatDecorator.setActions(n, reply_action.build());
-
-			// at and reply
-			// if (conversation.isGroupChat() && mPreferences.getBoolean(mPrefKeyMentionAction, false)) {
-			// 	final Person last_sender = messages[messages.length - 1].getPerson();
-			// 	if (last_sender != null && last_sender != mUserSelf) {
-			// 		final String label = "@" + last_sender.getName(), prefix = "@" + Conversation.getOriginalName(last_sender) + MENTION_SEPARATOR;
-			// 		n.addAction(new Action.Builder(null, label, proxyDirectReply(sbn, on_reply, remote_input, input_history, prefix))
-			// 				.addRemoteInput(reply_remote_input.setLabel(label).build()).setAllowGeneratedReplies(true).build());
-			// 	}
-			// }
+			actions.add(reply_action.build());
 		}
+		// 放大
+		if (n.extras.containsKey(WeChatDecorator.EXTRA_PICTURE_PATH)) {
+			final Intent intent = new Intent(ACTION_ZOOM).setData(Uri.fromParts(SCHEME_KEY, sbn.getKey(), null)).putExtra(EXTRA_ORIGINAL_KEY, WeChatDecorator.getOriginalKey(sbn));
+			final Action.Builder zoom_action = new Action.Builder(null, mPackageContext.getString(R.string.action_zoom), PendingIntent.getBroadcast(mContext, 0, intent.setPackage(mContext.getPackageName()), FLAG_UPDATE_CURRENT));
+			actions.add(zoom_action.build());
+		}
+		WeChatDecorator.setActions(n, actions.toArray(new Action[0]));
 		return messaging;
 	}
 
 	private static Message buildMessage(final Conversation conversation, final long when, final @Nullable CharSequence ticker,
-										final CharSequence text, @Nullable String sender, final IconCompat defaultIcon) {
+										final CharSequence text, @Nullable String sender) {
 		CharSequence actual_text = text;
 		if (sender == null) {
 			sender = extractSenderFromText(text);
@@ -223,7 +226,7 @@ class MessagingBuilder {
 		if (sender != null && sender.isEmpty()) person = null;		// Empty string as a special mark for "self"
 		else if (conversation.isGroupChat()) {
 			final String ticker_sender = ticker != null ? extractSenderFromText(ticker) : null;	// Group nick is used in ticker and content text, while original nick in sender.
-			person = sender == null ? null : conversation.getGroupParticipant(sender, ticker_sender != null ? ticker_sender : sender, defaultIcon);
+			person = sender == null ? null : conversation.getGroupParticipant(sender, ticker_sender != null ? ticker_sender : sender);
 		} else person = conversation.sender;
 		return new Message(actual_text, when, person);
 	}
@@ -302,7 +305,31 @@ class MessagingBuilder {
 			Log.w(TAG, "Reply action is already cancelled: " + key);
 			abortBroadcast();
 		}
-	}};
+	} };
+
+	private final BroadcastReceiver mZoomReceiver = new BroadcastReceiver() { @Override public void onReceive(final Context context, final Intent proxy_intent) {
+		final String action = proxy_intent.getAction();
+		final Uri data = proxy_intent.getData(); final Bundle results = RemoteInput.getResultsFromIntent(proxy_intent);
+		final String key = data.getSchemeSpecificPart(), original_key = proxy_intent.getStringExtra(EXTRA_ORIGINAL_KEY);
+		// final Bundle addition = new Bundle();
+		mController.recastNotification(original_key != null ? original_key : key, null, sbn -> {
+			final Notification n = sbn.getNotification();
+			final Bundle extras = n.extras;
+			if (BuildConfig.DEBUG) Log.d(TAG, "bitmap " + extras.getParcelable(Notification.EXTRA_PICTURE));
+			if (TEMPLATE_MESSAGING.equals(extras.getString(Notification.EXTRA_TEMPLATE))) {
+				final String path = extras.getString(WeChatDecorator.EXTRA_PICTURE_PATH);
+				final BitmapFactory.Options options = new BitmapFactory.Options();
+				options.inPreferredConfig = SDK_INT >= O ? Bitmap.Config.HARDWARE : Bitmap.Config.ARGB_8888;
+				// extras.putString(Notification.EXTRA_TEMPLATE, TEMPLATE_BIG_PICTURE);
+				extras.putParcelable(Notification.EXTRA_PICTURE, BitmapFactory.decodeFile(path, options));
+				// extras.putCharSequence(Notification.EXTRA_SUMMARY_TEXT, text);
+				extras.putString(Notification.EXTRA_TEMPLATE, TEMPLATE_BIG_PICTURE);
+			} else {
+				extras.putString(Notification.EXTRA_TEMPLATE, TEMPLATE_MESSAGING); // TODO
+			}
+			if (BuildConfig.DEBUG) Log.d(TAG, "bitmap " + extras.getParcelable(Notification.EXTRA_PICTURE));
+		});
+	} };
 
 	/** @param key the evolved key */
 	void markRead(final String key) {
@@ -362,19 +389,24 @@ class MessagingBuilder {
 		return user.toAndroidPerson();
 	}
 
-	interface Controller { void recastNotification(String key, Bundle addition); }
+	interface Controller { void recastNotification(String key, Bundle addition, WeChatDecorator.ModifyStatusBarNotification... modifies); }
 
 	MessagingBuilder(final Context context, final Context packageContext, final SharedPreferences preferences, final Controller controller) {
 		mContext = context;
 		mPackageContext = packageContext;
-		mDefaultIcon = IconCompat.createWithResource(packageContext, R.drawable.default_wechat_avatar);
 		mPreferences = preferences;
 		mController = controller;
 		mUserSelf = buildPersonFromProfile(packageContext);
 
 		mPrefKeyMentionAction = packageContext.getString(R.string.pref_mention_action);
-		final IntentFilter filter = new IntentFilter(ACTION_REPLY); filter.addAction(ACTION_MENTION); filter.addDataScheme(SCHEME_KEY);
-		context.registerReceiver(mReplyReceiver, filter);
+		{
+			final IntentFilter filter = new IntentFilter(ACTION_REPLY); filter.addAction(ACTION_MENTION); filter.addDataScheme(SCHEME_KEY);
+			context.registerReceiver(mReplyReceiver, filter);
+		}
+		{
+			final IntentFilter filter = new IntentFilter(ACTION_ZOOM); filter.addDataScheme(SCHEME_KEY);
+			context.registerReceiver(mZoomReceiver, filter);
+		}
 	}
 
 	private static Person buildPersonFromProfile(final Context packageContext) {
@@ -386,7 +418,6 @@ class MessagingBuilder {
 	}
 
 	private final Context mContext, mPackageContext;
-	private final IconCompat mDefaultIcon;
 	private final SharedPreferences mPreferences;
 	private final Controller mController;
 	private final Person mUserSelf;

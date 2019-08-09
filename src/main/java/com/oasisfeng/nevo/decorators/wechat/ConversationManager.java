@@ -73,7 +73,7 @@ class ConversationManager {
 			sender = sender.toBuilder().setName(title).build();		// Rename the sender
 		}
 
-		Person getGroupParticipant(final String key, final String name, final IconCompat defaultIcon) {
+		Person getGroupParticipant(final String key, final String name) {
 			if (! isGroupChat()) throw new IllegalStateException("Not group chat");
 			Person.Builder builder = null;
 			Person participant = mParticipants.get(key);
@@ -83,9 +83,9 @@ class ConversationManager {
 			if (builder != null) {
 				final CharSequence n = EmojiTranslator.translate(name);
 				builder.setUri(SCHEME_ORIGINAL_NAME + name).setName(n);
-				if (!pattern.matcher(n).find()) {
-					builder.setIcon(defaultIcon);
-				}
+				// if (!pattern.matcher(n).find()) { TODO
+				// 	builder.setIcon(defaultIcon);
+				// }
 				mParticipants.put(key, participant = builder.build());
 			}
 			return participant;

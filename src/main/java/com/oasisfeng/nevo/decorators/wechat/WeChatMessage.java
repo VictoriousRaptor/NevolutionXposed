@@ -1,18 +1,22 @@
 package com.oasisfeng.nevo.decorators.wechat;
 
 import android.app.Notification;
+import android.net.Uri;
 import android.service.notification.StatusBarNotification;
 import android.text.TextUtils;
 import android.util.Log;
 
 import com.oasisfeng.nevo.decorators.wechat.ConversationManager.Conversation;
 
+import java.io.File;
 import java.util.List;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat.MessagingStyle.Message;
 import androidx.core.app.Person;
 import androidx.core.graphics.drawable.IconCompat;
+
+import com.oasisfeng.nevo.xposed.BuildConfig;
 
 import static com.oasisfeng.nevo.decorators.wechat.WeChatDecorator.TAG;
 
@@ -35,35 +39,43 @@ class WeChatMessage {
 	static final String SENDER_MESSAGE_SEPARATOR = ": ";
 	private static final String SELF = "";
 
-	static Message[] buildFromCarConversation(final Conversation conversation, final Notification.CarExtender.UnreadConversation convs, final List<StatusBarNotification> archive, final IconCompat defaultIcon) {
+	static Message[] buildFromCarConversation(final Conversation conversation, final Notification.CarExtender.UnreadConversation convs, final List<StatusBarNotification> archive) {
 		final String[] car_messages = convs.getMessages();
-		if (car_messages.length == 0) return new Message[] { buildFromBasicFields(conversation).toMessage(defaultIcon) };	// No messages in car conversation
+		if (car_messages.length == 0) return new Message[] { buildFromBasicFields(conversation) };	// No messages in car conversation
 
-		final WeChatMessage basic_msg = buildFromBasicFields(conversation);
+		final CharSequence ticker = conversation.isRecall() ? conversation.summary : conversation.ticker;
+		final int pos = TextUtils.indexOf(ticker, SENDER_MESSAGE_SEPARATOR);
+		CharSequence sender = null, text;
+		if (pos > 0) {
+			sender = ticker.subSequence(0, pos);
+			text = ticker.subSequence(pos + SENDER_MESSAGE_SEPARATOR.length(), ticker.length());
+		} else text = ticker;
+		// final WeChatMessage basic_msg = buildFromBasicFields(conversation);
 		// Log.d(TAG, "car_messages " + car_messages.length);
 		// for (String car_message : car_messages) {
 		// 	Log.d(TAG, "car_message " + car_message);
 		// }
 		final Message[] messages = new Message[car_messages.length];
-		final CharSequence[] tickerArray = new CharSequence[car_messages.length];
+		final Notification[] notifications = new Notification[car_messages.length];
 		// Log.d(TAG, "archive " + archive.size());
 		// for (int i = 0, count = archive.size(); i < count; i++) {
 		// 	android.app.Notification n = archive.get(i).getNotification();
 		// 	Log.d(TAG, n.tickerText + ", " + n.extras.getCharSequence(android.app.Notification.EXTRA_TEXT)+ ", " + n.when);
 		// }
 		for (int i = archive.size() - 1, diff = archive.size() - car_messages.length; i >= 0 && i >= diff; i--) {
-			tickerArray[i - diff] =  archive.get(i).getNotification().tickerText;
+			notifications[i - diff] =  archive.get(i).getNotification();
 		}
 		int end_of_peers = -1;
 		if (! conversation.isGroupChat()) for (end_of_peers = car_messages.length - 1; end_of_peers >= -1; end_of_peers --)
-			if (end_of_peers >= 0 && TextUtils.equals(basic_msg.text, car_messages[end_of_peers])) break;	// Find the actual end line which matches basic fields, in case extra lines are sent by self
+			if (end_of_peers >= 0 && TextUtils.equals(text, car_messages[end_of_peers])) break;	// Find the actual end line which matches basic fields, in case extra lines are sent by self
 		for (int i = 0, count = car_messages.length; i < count; i ++) {
-			messages[i] = buildFromCarMessage(conversation, car_messages[i], tickerArray[i], end_of_peers >= 0 && i > end_of_peers).toMessage(defaultIcon);
+			messages[i] = buildFromCarMessage(conversation, car_messages[i], notifications[i], end_of_peers >= 0 && i > end_of_peers);
+			if (BuildConfig.DEBUG) Log.d(TAG, "buildFromCarMessage " + messages[i].getDataUri());
 		}
 		return messages;
 	}
 
-	private static WeChatMessage buildFromBasicFields(final Conversation conversation) {
+	private static Message buildFromBasicFields(final Conversation conversation) {
 		// Trim the possible trailing white spaces in ticker.
 		CharSequence ticker = conversation.isRecall() ? conversation.summary : conversation.ticker;
 		int ticker_length = ticker.length();
@@ -103,10 +115,10 @@ class WeChatMessage {
 			if (unread_count > 0)	// When unread count prefix is present, sender should also be included in summary.
 				Log.e(TAG, "Sender mismatch: \"" + sender + "\" in ticker, summary: " + summary.subSequence(0, Math.min(10, content_length)));
 			if (startsWith(ticker, sender, SENDER_MESSAGE_SEPARATOR))	// Normal case for single unread message
-				return new WeChatMessage(conversation, sender, content_wo_prefix, conversation.timestamp);
+				return toMessage(conversation, sender, content_wo_prefix, conversation.timestamp);
 		}
 		Log.d(TAG, "text " + text);
-		return new WeChatMessage(conversation, sender, text, conversation.timestamp);
+		return toMessage(conversation, sender, text, conversation.timestamp);
 	}
 
 	/**
@@ -154,8 +166,9 @@ class WeChatMessage {
 				&& TextUtils.regionMatches(text, needle1_length, needle2, 0, needle2_length);
 	}
 
-	private static WeChatMessage buildFromCarMessage(final Conversation conversation, final String message, @Nullable CharSequence ticker, final boolean from_self) {
+	private static Message buildFromCarMessage(final Conversation conversation, final String message, @Nullable Notification notification, final boolean from_self) {
 		String text = message, sender = null;
+		CharSequence ticker = (notification != null) ? notification.tickerText : null;
 		if (ticker == null) ticker = message;
 		int pos;
 		// parse text
@@ -177,24 +190,26 @@ class WeChatMessage {
 				if (conversation.isGroupChat() && title_as_sender) sender = SELF;		// WeChat incorrectly use group chat title as sender for self-sent messages.
 			} else sender = null;		// Not really the sender name, revert the parsing result.
 		}
-		return new WeChatMessage(conversation, from_self ? SELF : sender, EmojiTranslator.translate(text), 0);
+		return toMessage(conversation, from_self ? SELF : sender, text, 0, (notification != null) ? notification.extras.getString(WeChatDecorator.EXTRA_PICTURE_PATH) : null);
 	}
 
-	private Message toMessage(IconCompat defaultIcon) {
-		final Person person = SELF.equals(sender) ? null : conversation.isGroupChat() ? conversation.getGroupParticipant(sender, nick, defaultIcon) : conversation.sender;
-		return new Message(text, time, person);
+	private static Message toMessage(final Conversation conversation, final @Nullable CharSequence sender, final CharSequence text, final long time) {
+		return toMessage(conversation, sender, text, time, null);
 	}
 
-	private WeChatMessage(final Conversation conversation, final @Nullable CharSequence sender, final CharSequence text, final long time) {
-		this.conversation = conversation;
-		this.sender = nick = sender == null ? null : sender.toString();		// Nick defaults to sender
-		this.text = text;
-		this.time = time;
+	private static final String STORAGE_PREFIX = "/storage/emulated/0/";
+
+	private static Message toMessage(final Conversation conversation, final @Nullable CharSequence sender, final CharSequence text, final long time, final String picturePath) {
+		final String s = (sender != null) ? sender.toString() : null;
+		final Person person = SELF.equals(sender) ? null : conversation.isGroupChat() ? conversation.getGroupParticipant(s, s) : conversation.sender;
+		Message r = new Message(EmojiTranslator.translate(text), time, person);
+		if (picturePath != null) {
+			if (BuildConfig.DEBUG) Log.d(TAG, "message.setData " + picturePath);
+			File file = new File(picturePath);
+			if (file.exists()) r.setData("image/jpeg", Uri.fromFile(file));
+			if (BuildConfig.DEBUG) Log.d(TAG, file.exists() + " toMessage " + r.getDataUri());
+		}
+		return r;
 	}
 
-	private final Conversation conversation;
-	private final @Nullable String sender;
-	private final @Nullable String nick;
-	private final CharSequence text;
-	private final long time;
 }
