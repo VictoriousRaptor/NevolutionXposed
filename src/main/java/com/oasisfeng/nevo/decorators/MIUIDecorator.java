@@ -15,11 +15,13 @@ import android.util.Log;
 import de.robv.android.xposed.XposedHelpers;
 
 import com.oasisfeng.nevo.xposed.R;
+import com.oasisfeng.nevo.decorators.media.ColorUtil;
 
 import top.trumeet.common.cache.IconCache;
 
 public class MIUIDecorator extends BigTextDecorator {
 
+	private static final String NOTIFICATION_ICON = "mipush_notification";
 	private static final String NOTIFICATION_SMALL_ICON = "mipush_small_notification";
 	private static final String TAG = "MIUIDecorator";
 
@@ -31,9 +33,12 @@ public class MIUIDecorator extends BigTextDecorator {
 	public void apply(StatusBarNotification evolving) {
 		super.apply(evolving);
 		final Notification n = evolving.getNotification();
-		final Context context = getPackageContext();
+		Icon defIcon;
+		{
+			final Context context = getPackageContext();
+			defIcon = Icon.createWithResource(context, R.drawable.mipush_small_notification);
+		}
 		Log.d(TAG, "begin modifying ");
-		Icon defIcon = Icon.createWithResource(context, R.drawable.mipush_small_notification);
 		String packageName = null;
 		try {
 			packageName = evolving.getPackageName();
@@ -48,19 +53,25 @@ public class MIUIDecorator extends BigTextDecorator {
 		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
 			// do nothing
 		} else {
+			final IconCache cache = IconCache.getInstance();
+			final Context context = getPackageContext(packageName);
 			int iconId;
-			// Log.d(TAG, "packageName: " + packageName);
-			iconId = context.getResources().getIdentifier(NOTIFICATION_SMALL_ICON, "drawable", packageName);
-			if (iconId > 0) // has icon
+			if ((iconId  = context.getResources().getIdentifier(NOTIFICATION_SMALL_ICON, "drawable", packageName)) != 0) { // has small icon
+				Log.d("inspect", "iconId0 " + iconId);
 				setSmallIcon(n, Icon.createWithResource(packageName, iconId));
-			if (iconId <= 0) { // does not have icon
-				Icon iconCache = IconCache.getInstance().getIconCache(context, packageName, (ctx, b) -> Icon.createWithBitmap(b));
+			} else if ((iconId = context.getResources().getIdentifier(NOTIFICATION_ICON, "drawable", packageName)) != 0) { // has icon
+				Log.d("inspect", "iconId1 " + iconId);
+				setSmallIcon(n, Icon.createWithResource(packageName, iconId));
+			} else { // does not have icon
+				Log.d("inspect", "iconId2 " + iconId);
+				Icon iconCache = cache.getIconCache(context, packageName, (ctx, b) -> Icon.createWithBitmap(b));
 				if (iconCache != null) {
 					setSmallIcon(n, iconCache);
 				} else {
 					setSmallIcon(n, defIcon);
 				}
 			}
+			n.color = cache.getAppColor(context, packageName, (ctx, b) -> ColorUtil.getColor(b)[0]);
 		}
 		Log.d(TAG, "end modifying");
 	}

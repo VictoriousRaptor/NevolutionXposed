@@ -57,14 +57,14 @@ public abstract class NevoDecoratorService {
 	}
 
 	protected static Context getPackageContext() {
-		return getPackageContext(BuildConfig.APPLICATION_ID);
+		if (packageContext == null)
+			packageContext = getPackageContext(BuildConfig.APPLICATION_ID);
+		return packageContext;
 	}
 
 	protected static Context getPackageContext(String packageName) {
 		try {
-			if (packageContext == null)
-				packageContext = getAppContext().createPackageContext(packageName, Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY);
-			return packageContext;
+			return getAppContext().createPackageContext(packageName, Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY);
 		} catch (PackageManager.NameNotFoundException ig) { return null; }
 	}
 

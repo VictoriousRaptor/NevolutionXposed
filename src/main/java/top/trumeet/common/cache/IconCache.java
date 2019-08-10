@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.Icon;
+import android.util.Log;
 import android.util.LruCache;
 
 import top.trumeet.common.utils.ImgUtils;
@@ -53,8 +54,15 @@ public class IconCache {
             @Override
             Bitmap gen() {
                 try {
-                    Drawable icon = ctx.getPackageManager().getApplicationIcon(pkg);
-                    return drawableToBitmap(icon);
+					Log.d("inspect", "context " + ctx);
+					Drawable icon = ctx.getPackageManager().getApplicationIcon(pkg);
+					Log.d("inspect", "icon " + icon);
+                    Bitmap r = drawableToBitmap(icon);
+					Log.d("inspect", "bitmap " + r);
+					return r;
+                } catch (IllegalArgumentException ignored) {
+					Log.d("inspect", "ooo " + pkg);
+					return null;
                 } catch (Exception ignored) {
                     return null;
                 }
@@ -72,7 +80,6 @@ public class IconCache {
             }
         }.get("white_" + pkg);
     }
-
 
     public int getAppColor(final Context ctx, final String pkg, Converter<Bitmap, Integer> callback) {
         return new AbstractCacheAspect<Integer>(appColorCache) {

@@ -17,7 +17,7 @@ public class ColorUtil {
         if (bitmap != null){
             Palette palette = Palette.from(bitmap).generate();
             Palette.Swatch swatch = palette.getDominantSwatch();
-            if (swatch!=null){
+            if (swatch != null){
                 backgroundColor = swatch.getRgb();
                 textColor = getTextColor(palette,backgroundColor);
             }
