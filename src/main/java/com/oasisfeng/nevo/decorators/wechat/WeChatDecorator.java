@@ -70,6 +70,7 @@ import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 import com.oasisfeng.nevo.decorators.wechat.ConversationManager.Conversation;
+import com.oasisfeng.nevo.sdk.HookSupport;
 import com.oasisfeng.nevo.sdk.NevoDecoratorService;
 
 import com.oasisfeng.nevo.xposed.BuildConfig;
@@ -86,7 +87,7 @@ import com.oasisfeng.nevo.xposed.R;
  * Modify by Kr328 on 2019-1-5
  * Modify by notXX on 2019-8-5
  */
-public class WeChatDecorator extends NevoDecoratorService {
+public class WeChatDecorator extends NevoDecoratorService implements HookSupport {
 
 	public static final String WECHAT_PACKAGE = "com.tencent.mm";
 	private static final int MAX_NUM_ARCHIVED = 20;

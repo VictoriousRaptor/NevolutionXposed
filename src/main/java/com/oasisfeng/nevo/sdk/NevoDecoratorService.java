@@ -145,7 +145,6 @@ public abstract class NevoDecoratorService {
 	@Keep public void onCreate() {}
 	@Keep public void onDestroy() {}
 
-	@Keep public void hook(XC_LoadPackage.LoadPackageParam loadPackageParam) {}
 	
 	/**
 	 * 在应用进程中执行的通知预处理，某些功能（NotificationChannel等）在此实现。

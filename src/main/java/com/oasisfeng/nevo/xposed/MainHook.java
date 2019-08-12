@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import com.oasisfeng.nevo.sdk.HookSupport;
 import com.oasisfeng.nevo.sdk.NevoDecoratorService;
 import com.oasisfeng.nevo.xposed.BuildConfig;
 
@@ -199,7 +200,7 @@ public class MainHook implements IXposedHookLoadPackage {
 				}
 			});
 		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("NotificationManager hook failed"); }
-		wechat.hook(loadPackageParam); // TODO
+		if (wechat instanceof HookSupport) ((HookSupport)wechat).hook(loadPackageParam); // TODO
 	}
 	
 	private void onCreate(Context context) {
