@@ -42,11 +42,8 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedList;
-import java.util.Map;
 import java.util.List;
 import java.util.Optional;
-import java.util.WeakHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -90,7 +87,6 @@ import com.oasisfeng.nevo.xposed.R;
 public class WeChatDecorator extends NevoDecoratorService implements HookSupport {
 
 	public static final String WECHAT_PACKAGE = "com.tencent.mm";
-	private static final int MAX_NUM_ARCHIVED = 20;
 	private static final long GROUP_CHAT_SORT_KEY_SHIFT = 24 * 60 * 60 * 1000L;			// Sort group chat like one day older message.
 	private static final String CHANNEL_MESSAGE = "message_channel_new_id";				// Channel ID used by WeChat for all message notifications
 	private static final String OLD_CHANNEL_MESSAGE = "message";						//   old name for migration
@@ -252,17 +248,12 @@ public class WeChatDecorator extends NevoDecoratorService implements HookSupport
 	}
 
 	@Override public void apply(final StatusBarNotification evolving) {
+		cache(evolving);
+
 		final String key = evolving.getKey();
 		setOriginalId(evolving, evolving.getId());
 		setOriginalKey(evolving, key);
 		setOriginalTag(evolving, evolving.getTag());
-		LinkedList<StatusBarNotification> queue = map.get(key);
-		if (queue == null) {
-			queue = new LinkedList<>();
-			map.put(key, queue);
-		}
-		queue.add(evolving);
-		if (queue.size() > MAX_NUM_ARCHIVED) queue.remove();
 
 		final Notification n = evolving.getNotification();
 		final Bundle extras = n.extras;
@@ -326,9 +317,9 @@ public class WeChatDecorator extends NevoDecoratorService implements HookSupport
 		if (mPreferences.getBoolean(mPrefKeyWear, false)) n.flags &= ~ Notification.FLAG_LOCAL_ONLY;
 		setSortKey(n, String.valueOf(Long.MAX_VALUE - n.when + (is_group_chat ? GROUP_CHAT_SORT_KEY_SHIFT : 0))); // Place group chat below other messages
 
-		MessagingStyle messaging = mMessagingBuilder.buildFromExtender(conversation, evolving, title, getArchivedNotifications(getOriginalKey(evolving), MAX_NUM_ARCHIVED)); // build message from android auto
+		MessagingStyle messaging = mMessagingBuilder.buildFromExtender(conversation, evolving, title, getArchivedNotifications(getOriginalKey(evolving))); // build message from android auto
 		if (messaging == null)	// EXTRA_TEXT will be written in buildFromArchive()
-			messaging = mMessagingBuilder.buildFromArchive(conversation, n, title, getArchivedNotifications(getOriginalKey(evolving), MAX_NUM_ARCHIVED));
+			messaging = mMessagingBuilder.buildFromArchive(conversation, n, title, getArchivedNotifications(getOriginalKey(evolving)));
 		if (messaging == null) return;
 		final List<MessagingStyle.Message> messages = messaging.getMessages();
 		if (messages.isEmpty()) return;
@@ -471,19 +462,11 @@ public class WeChatDecorator extends NevoDecoratorService implements HookSupport
 
 	static final String TAG = "Nevo.Decorator[WeChat]";
 
-	private static final Map<String, LinkedList<StatusBarNotification>> map = new WeakHashMap<>();
-
-	public static List<StatusBarNotification> getArchivedNotifications(String key, int max) {
-		LinkedList<StatusBarNotification> queue = map.get(key);
-		return queue != null ? new ArrayList<>(queue) : new ArrayList<>();
-	}
-
 	public static interface ModifyStatusBarNotification { void modify(StatusBarNotification sbn); }
 
 	private void recastNotification(final String key, final @Nullable Bundle fillInExtras, final ModifyStatusBarNotification... modifies) {
-		LinkedList<StatusBarNotification> queue = map.get(key);
-		if (queue == null) return;
-		StatusBarNotification sbn = queue.getLast();
+		if (!hasArchivedNotifications(key)) return;
+		StatusBarNotification sbn = getArchivedNotification(key);
 		if (fillInExtras != null) sbn.getNotification().extras.putAll(fillInExtras);
 		for (ModifyStatusBarNotification modify : modifies) modify.modify(sbn);
 		recastNotification(sbn);

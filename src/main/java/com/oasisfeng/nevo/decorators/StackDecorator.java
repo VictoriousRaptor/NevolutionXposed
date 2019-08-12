@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C) 2015 The Nevolution Project
  *
@@ -40,7 +41,7 @@ public class StackDecorator extends NevoDecoratorService {
 		final String template = n.extras.getString(Notification.EXTRA_TEMPLATE);
 		if (template != null && ! template.equals(TEMPLATE_BIG_TEXT)) return;		// Skip except for BigTextStyle.
 
-		final Collection<StatusBarNotification> history = getArchivedNotifications(evolving.getKey(), KMaxNumLines);
+		final Collection<StatusBarNotification> history = getArchivedNotifications(evolving.getKey());
 		if (history.size() <= 1) return;
 
 		final List<CharSequence> lines = new ArrayList<>(KMaxNumLines);

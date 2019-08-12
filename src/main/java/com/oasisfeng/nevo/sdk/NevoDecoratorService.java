@@ -16,13 +16,20 @@ import android.widget.RemoteViews;
 import androidx.annotation.Keep;
 import androidx.annotation.Nullable;
 
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
+
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 import com.oasisfeng.nevo.xposed.BuildConfig;
 
-
 public abstract class NevoDecoratorService {
+	private static final int MAX_NUM_ARCHIVED = 20;
+
 	public static final String EXTRAS_BIG_CONTENT_VIEW_OVERRIDE = "nevo.bigContentView";
 	public static final String EXTRAS_CONTENT_VIEW_OVERRIDE = "nevo.contentView";
 	/** Valid constant values for {@link android.app.Notification#EXTRA_TEMPLATE} */
@@ -142,6 +149,33 @@ public abstract class NevoDecoratorService {
 		XposedHelpers.setObjectField(n, "actions", actions);
 	}
 
+	private static final Map<String, LinkedList<StatusBarNotification>> map = new WeakHashMap<>();
+
+	protected static void cache(StatusBarNotification sbn) {
+		final String key = sbn.getKey();
+		LinkedList<StatusBarNotification> queue = map.get(key);
+		if (queue == null) {
+			queue = new LinkedList<>();
+			map.put(key, queue);
+		}
+		queue.add(sbn);
+		if (queue.size() > MAX_NUM_ARCHIVED) queue.remove();
+	}
+
+	protected static List<StatusBarNotification> getArchivedNotifications(String key) {
+		LinkedList<StatusBarNotification> queue = map.get(key);
+		return queue != null ? new ArrayList<>(queue) : new ArrayList<>();
+	}
+
+	protected static StatusBarNotification getArchivedNotification(String key) {
+		LinkedList<StatusBarNotification> queue = map.get(key);
+		return queue.getLast();
+	}
+
+	protected static boolean hasArchivedNotifications(String key) {
+		return map.containsKey(key);
+	}
+
 	@Keep public void onCreate() {}
 	@Keep public void onDestroy() {}
 
@@ -150,9 +184,14 @@ public abstract class NevoDecoratorService {
 	 * 在应用进程中执行的通知预处理，某些功能（NotificationChannel等）在此实现。
 	 */
 	@Keep public void preApply(NotificationManager nm, String tag, int id, Notification n) {}
+	@Keep public Decorating onNotificationPosted(final StatusBarNotification sbn) {
+		apply(sbn);
+		return Decorating.Processed;
+	}
 	/**
 	 * 在系统UI（SystemUI）中执行的通知处理。
 	 */
+	@Deprecated
 	@Keep public void apply(final StatusBarNotification evolving) {}
 	@Keep public void onNotificationRemoved(final StatusBarNotification evolving, final int reason) {
 		Log.d(TAG, "onNotificationRemoved(" + evolving + ", " + reason + ")");
