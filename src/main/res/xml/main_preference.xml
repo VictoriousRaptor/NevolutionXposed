@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android" >
+
+	<!-- wechat -->
+	<PreferenceCategory 
+		android:key="decorator_wechat"
+		android:title="@string/decorator_wechat_title">
+		<CheckBoxPreference 
+			android:key="decorator_wechat.enabled"
+			android:summary="@string/decorator_wechat_description"
+			android:title="@string/decorator_enabled"/>
+		<CheckBoxPreference 
+			android:key="decorator_wechat.miui_fix"
+			android:summary="@string/decorator_wechat_miui_fix"
+			android:title="@string/decorator_fix_enabled"/>
+	</PreferenceCategory>
+
+	<!-- miui -->
+	<PreferenceCategory 
+		android:key="decorator_miui"
+		android:title="@string/decorator_miui_title">
+		<CheckBoxPreference 
+			android:key="decorator_miui.enabled"
+			android:summary="@string/decorator_miui_description"
+			android:title="@string/decorator_enabled"/>
+	</PreferenceCategory>
+
+	<!-- media -->
+	<PreferenceCategory 
+		android:key="decorator_media"
+		android:title="@string/decorator_media_title">
+		<CheckBoxPreference 
+			android:key="decorator_media.enabled"
+			android:summary="@string/decorator_media_description"
+			android:title="@string/decorator_enabled"/>
+	</PreferenceCategory>
+
+</PreferenceScreen>

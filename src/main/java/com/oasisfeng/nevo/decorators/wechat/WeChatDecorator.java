@@ -333,7 +333,7 @@ public class WeChatDecorator extends NevoDecoratorService implements HookSupport
 			n.flags |= Notification.FLAG_ONLY_ALERT_ONCE;		// No more alert for direct-replied notification.
 
 		// fix for recent (around 20190720) MIUI bugs
-		if (overridedContentView(n) == null) {
+		if (overrideContentView && overridedContentView(n) == null) {
 			n.contentView = overrideContentView(n, new RemoteViews(BuildConfig.APPLICATION_ID, R.layout.wechat_notifition_layout));
 		}
 		n.contentView.setTextViewText(R.id.title, title);
@@ -425,8 +425,13 @@ public class WeChatDecorator extends NevoDecoratorService implements HookSupport
 		}
 	}
 
-	@Override public void onCreate() {
-		super.onCreate();
+	private boolean overrideContentView;
+
+	@Override public void onCreate(SharedPreferences pref) {
+		super.onCreate(pref);
+
+		overrideContentView = pref.getBoolean("decorator_wechat.miui_fix", false);
+
 		loadPreferences();
 		mPrefKeyWear = getString(R.string.pref_wear);
 

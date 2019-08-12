@@ -16,6 +16,11 @@
   -->
 
 <resources>
+	<string name="app_name">女娲石Xposed</string>
+
+	<string name="decorator_enabled">启用此插件</string>
+	<string name="decorator_fix_enabled">启用此补丁</string>
+
 	<string name="decorators_misc_label">女娲石 - 通用插件集</string>
 
 	<string name="decorator_elastic_inbox_title">弹性列表</string>
@@ -32,4 +37,29 @@
 	<string name="no_sticky_prompt_title">是否隐藏该顽固通知？</string>
 	<string name="no_sticky_prompt_sub_text">点击隐藏</string>
 	<string name="no_sticky_toast">通知已隐藏，直到下次启动。</string>
+
+	<!-- decorator-wechat -->
+
+	<string name="decorator_wechat_title">微信通知增强</string>
+	<string name="decorator_wechat_description">符合当代 Android 的最佳通知体验：可展开的会话样式、直接回复、划除即已读等高级特性。</string>
+	<string name="decorator_wechat_miui_fix">修正MIUI开发版下微信通知增强的问题</string>
+	<string name="self_display_name">你</string>
+	<string name="action_reply">回复</string>
+	<string name="action_zoom">缩放</string>
+	<string name="action_preview_image">预览图片</string>
+
+	<string name="channel_message">新消息通知</string>
+	<string name="channel_group_message">新群组消息通知</string>
+	<string name="channel_misc">其它通知</string>
+
+	<!-- decorator-miui -->
+
+	<string name="decorator_miui_title">MIUI通知增强</string>
+	<string name="decorator_miui_description">为小米通知框架（MiPushFramework）产生小图标。</string>
+
+	<!-- decorator-media -->
+
+	<string name="decorator_media_title">媒体通知增强</string>
+	<string name="decorator_media_description">为媒体通知产生Android O样式的外观。</string>
+
 </resources>

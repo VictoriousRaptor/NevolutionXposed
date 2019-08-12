@@ -26,6 +26,7 @@ import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
+import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 /**
@@ -36,6 +37,7 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 public class MainHook implements IXposedHookLoadPackage {
 	private static final String TAG = "MainHook";
 
+	private final XSharedPreferences pref = new XSharedPreferences(BuildConfig.APPLICATION_ID);
 	private final NevoDecoratorService wechat = new com.oasisfeng.nevo.decorators.wechat.WeChatDecorator();
 	private final NevoDecoratorService miui = new com.oasisfeng.nevo.decorators.MIUIDecorator();
 	private final NevoDecoratorService media = new com.oasisfeng.nevo.decorators.media.MediaDecorator();
@@ -200,14 +202,14 @@ public class MainHook implements IXposedHookLoadPackage {
 				}
 			});
 		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("NotificationManager hook failed"); }
-		if (wechat instanceof HookSupport) ((HookSupport)wechat).hook(loadPackageParam); // TODO
+		if (pref.getBoolean("decorator_wechat.enabled", false) && (wechat instanceof HookSupport)) ((HookSupport)wechat).hook(loadPackageParam); // TODO
 	}
 	
 	private void onCreate(Context context) {
 		NevoDecoratorService.setAppContext(context);
-		wechat.onCreate();
-		miui.onCreate();
-		media.onCreate();
+		wechat.onCreate(pref);
+		miui.onCreate(pref);
+		media.onCreate(pref);
 	}
 	
 	// TODO
@@ -217,7 +219,7 @@ public class MainHook implements IXposedHookLoadPackage {
 			return;
 		}
 		XposedHelpers.setAdditionalInstanceField(n, "pre-applied", true);
-		wechat.preApply(nm, tag, id, n);
+		if (pref.getBoolean("decorator_wechat.enabled", false)) wechat.preApply(nm, tag, id, n);
 	}
 
 	private void onNotificationPosted(StatusBarNotification sbn) {
@@ -228,24 +230,24 @@ public class MainHook implements IXposedHookLoadPackage {
 		XposedHelpers.setAdditionalInstanceField(sbn, "applied", true);
 		switch (sbn.getPackageName()) {
 			case "com.tencent.mm":
-			wechat.apply(sbn);
+			if (pref.getBoolean("decorator_wechat.enabled", false)) wechat.apply(sbn);
 			break;
 			case "com.xiaomi.xmsf":
-			miui.apply(sbn);
+			if (pref.getBoolean("decorator_miui.enabled", false)) miui.apply(sbn);
 			break;
 		}
-		media.apply(sbn);
+		if (pref.getBoolean("decorator_media.enabled", false)) media.apply(sbn);
 	}
 
 	private void onNotificationRemoved(StatusBarNotification sbn, int reason) {
 		switch (sbn.getPackageName()) {
 			case "com.tencent.mm":
-			wechat.onNotificationRemoved(sbn, reason);
+			if (pref.getBoolean("decorator_wechat.enabled", false)) wechat.onNotificationRemoved(sbn, reason);
 			break;
 			case "com.xiaomi.xmsf":
-			miui.onNotificationRemoved(sbn, reason);
+			if (pref.getBoolean("decorator_miui.enabled", false)) miui.onNotificationRemoved(sbn, reason);
 			break;
 		}
-		media.onNotificationRemoved(sbn, reason);
+		if (pref.getBoolean("decorator_media.enabled", false)) media.onNotificationRemoved(sbn, reason);
 	}
 }

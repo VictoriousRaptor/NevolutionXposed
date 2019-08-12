@@ -5,6 +5,7 @@ import android.app.Notification.Action;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.service.notification.NotificationListenerService;
@@ -176,7 +177,7 @@ public abstract class NevoDecoratorService {
 		return map.containsKey(key);
 	}
 
-	@Keep public void onCreate() {}
+	@Keep public void onCreate(SharedPreferences pref) {}
 	@Keep public void onDestroy() {}
 
 	
