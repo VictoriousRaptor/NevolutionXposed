@@ -21,13 +21,16 @@ import android.os.Bundle;
 import android.service.notification.StatusBarNotification;
 import android.util.Log;
 
+import com.oasisfeng.nevo.sdk.Decorator;
 import com.oasisfeng.nevo.sdk.NevoDecoratorService;
+import com.oasisfeng.nevo.xposed.R;
 
 /**
  * Expand truncated single-line text into expandable multi-line long text.
  *
  * @author Oasis
  */
+@Decorator(title = R.string.decorator_big_text_title, description = R.string.decorator_big_text_description, priority = -20)
 public class BigTextDecorator extends NevoDecoratorService {
 
 	@Override public void apply(final StatusBarNotification evolved) {

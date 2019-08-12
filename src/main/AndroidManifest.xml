@@ -25,18 +25,6 @@
 			</intent-filter>
 		</activity>
 
-		<service
-			android:name="com.oasisfeng.nevo.decorators.BigTextDecorator"
-			android:directBootAware="true"
-			android:permission="com.oasisfeng.nevo.permission.BIND_DECORATOR_SERVICE"
-			android:process="com.oasisfeng.nevo.decorators"
-			android:label="@string/decorator_big_text_title"
-			android:description="@string/decorator_big_text_description">
-			<intent-filter android:priority="-20">
-				<action android:name="com.oasisfeng.nevo.Decorator" />
-			</intent-filter>
-		</service>
-
 	</application>
 
 </manifest>

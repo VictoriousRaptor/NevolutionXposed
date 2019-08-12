@@ -21,17 +21,20 @@ import android.app.Notification;
 import android.os.Bundle;
 import android.service.notification.StatusBarNotification;
 
-import com.oasisfeng.nevo.sdk.NevoDecoratorService;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import com.oasisfeng.nevo.sdk.Decorator;
+import com.oasisfeng.nevo.sdk.NevoDecoratorService;
+import com.oasisfeng.nevo.xposed.R;
+
 import static android.app.Notification.EXTRA_BIG_TEXT;
 import static android.app.Notification.EXTRA_TEXT;
 
 /** @author Oasis */
+@Decorator(title = R.string.decorator_stack_title, description = R.string.decorator_stack_description, priority = -20)
 public class StackDecorator extends NevoDecoratorService {
 
 	private static final int KMaxNumLines = 10;
