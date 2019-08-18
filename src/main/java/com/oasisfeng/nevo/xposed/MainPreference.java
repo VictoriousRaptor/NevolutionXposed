@@ -15,11 +15,7 @@ public class MainPreference extends PreferenceFragment {
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		PreferenceManager manager = getPreferenceManager();
-		// if (SDK_INT >= N) manager.setStorageDeviceProtected();
-		Map<String, ?> map = manager.getSharedPreferences().getAll();
-		for (Map.Entry<String, ?> entry : map.entrySet()) {
-			Log.d("inspect", entry.getKey() + "=>" + entry.getValue());
-		}
+		if (SDK_INT >= N) manager.setStorageDeviceProtected();
 		addPreferencesFromResource(R.xml.main_preference);
 	}
 }

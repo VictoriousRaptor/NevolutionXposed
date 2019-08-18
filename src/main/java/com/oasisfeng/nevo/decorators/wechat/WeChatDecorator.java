@@ -315,7 +315,7 @@ public class WeChatDecorator extends NevoDecoratorService implements HookSupport
 		final boolean is_group_chat = conversation.isGroupChat();
 
 		extras.putBoolean(Notification.EXTRA_SHOW_WHEN, true);
-		if (mPreferences.getBoolean(mPrefKeyWear, false)) n.flags &= ~ Notification.FLAG_LOCAL_ONLY;
+		// if (mPreferences.getBoolean(mPrefKeyWear, false)) n.flags &= ~ Notification.FLAG_LOCAL_ONLY; // TODO
 		setSortKey(n, String.valueOf(Long.MAX_VALUE - n.when + (is_group_chat ? GROUP_CHAT_SORT_KEY_SHIFT : 0))); // Place group chat below other messages
 
 		MessagingStyle messaging = mMessagingBuilder.buildFromExtender(conversation, evolving, title, getArchivedNotifications(getOriginalKey(evolving))); // build message from android auto
@@ -430,12 +430,12 @@ public class WeChatDecorator extends NevoDecoratorService implements HookSupport
 	@Override public void onCreate(SharedPreferences pref) {
 		super.onCreate(pref);
 
-		overrideContentView = pref.getBoolean("decorator_wechat.miui_fix", false);
+		overrideContentView = pref.getBoolean(prefKey + ".miui_fix", true); // TODO
 
-		loadPreferences();
-		mPrefKeyWear = getString(R.string.pref_wear);
+		// loadPreferences();
+		// mPrefKeyWear = getString(R.string.pref_wear);
 
-		mMessagingBuilder = new MessagingBuilder(getAppContext(), getPackageContext(), mPreferences, this::recastNotification);		// Must be called after loadPreferences().
+		mMessagingBuilder = new MessagingBuilder(getAppContext(), getPackageContext(), /* mPreferences,  */this::recastNotification);		// Must be called after loadPreferences().
 	}
 
 	@Override public void onDestroy() {
@@ -445,25 +445,25 @@ public class WeChatDecorator extends NevoDecoratorService implements HookSupport
 		super.onDestroy();
 	}
 
-	private void loadPreferences() {
+	/* private void loadPreferences() {
 		Context context = getPackageContext();
 		if (SDK_INT >= N)
 			context = context.createDeviceProtectedStorageContext();
 		//noinspection deprecation
-		mPreferences = context.getSharedPreferences(getDefaultSharedPreferencesName(context), Context.MODE_MULTI_PROCESS);
-	}
+		// mPreferences = context.getSharedPreferences(getDefaultSharedPreferencesName(context), Context.MODE_MULTI_PROCESS);
+	} */
 
-	private static String getDefaultSharedPreferencesName(final Context context) {
+	/* private static String getDefaultSharedPreferencesName(final Context context) {
 		return SDK_INT >= N ? PreferenceManager.getDefaultSharedPreferencesName(context) : context.getPackageName() + "_preferences";
-	}
+	} */
 
 
 
 	private final ConversationManager mConversationManager = new ConversationManager();
 	private MessagingBuilder mMessagingBuilder;
 	private boolean mWeChatTargetingO;
-	private SharedPreferences mPreferences;
-	private String mPrefKeyWear;
+	// private SharedPreferences mPreferences;
+	// private String mPrefKeyWear;
 	// private final Handler mHandler = new Handler();
 
 	static final String TAG = "Nevo.Decorator[WeChat]";

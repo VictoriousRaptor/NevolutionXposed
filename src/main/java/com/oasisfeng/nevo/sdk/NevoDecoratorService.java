@@ -177,7 +177,21 @@ public abstract class NevoDecoratorService {
 		return map.containsKey(key);
 	}
 
-	@Keep public void onCreate(SharedPreferences pref) {}
+	protected final String prefKey;
+	private boolean disabled;
+
+	public NevoDecoratorService() {
+		this.prefKey = getClass().getSimpleName();
+	}
+
+	public boolean isDisabled() { return disabled; }
+	public void setDisabled(boolean disabled) { this.disabled = disabled; }
+
+	@Keep public void onCreate(SharedPreferences pref) {
+		this.disabled = !pref.getBoolean(prefKey  + ".enabled", true);
+		if (BuildConfig.DEBUG) Log.d(TAG, prefKey + ".disabled " + this.disabled);
+	}
+
 	@Keep public void onDestroy() {}
 
 	

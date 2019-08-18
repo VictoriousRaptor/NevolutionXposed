@@ -3,34 +3,34 @@
 
 	<!-- wechat -->
 	<PreferenceCategory 
-		android:key="decorator_wechat"
+		android:key="WeChatDecorator"
 		android:title="@string/decorator_wechat_title">
 		<CheckBoxPreference 
-			android:key="decorator_wechat.enabled"
+			android:key="WeChatDecorator.enabled"
 			android:summary="@string/decorator_wechat_description"
 			android:title="@string/decorator_enabled"/>
 		<CheckBoxPreference 
-			android:key="decorator_wechat.miui_fix"
+			android:key="WeChatDecorator.miui_fix"
 			android:summary="@string/decorator_wechat_miui_fix"
 			android:title="@string/decorator_fix_enabled"/>
 	</PreferenceCategory>
 
 	<!-- miui -->
 	<PreferenceCategory 
-		android:key="decorator_miui"
+		android:key="MIUIDecorator"
 		android:title="@string/decorator_miui_title">
 		<CheckBoxPreference 
-			android:key="decorator_miui.enabled"
+			android:key="MIUIDecorator.enabled"
 			android:summary="@string/decorator_miui_description"
 			android:title="@string/decorator_enabled"/>
 	</PreferenceCategory>
 
 	<!-- media -->
 	<PreferenceCategory 
-		android:key="decorator_media"
+		android:key="MediaDecorator"
 		android:title="@string/decorator_media_title">
 		<CheckBoxPreference 
-			android:key="decorator_media.enabled"
+			android:key="MediaDecorator.enabled"
 			android:summary="@string/decorator_media_description"
 			android:title="@string/decorator_enabled"/>
 	</PreferenceCategory>

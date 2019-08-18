@@ -391,10 +391,10 @@ class MessagingBuilder {
 
 	interface Controller { void recastNotification(String key, Bundle addition, WeChatDecorator.ModifyStatusBarNotification... modifies); }
 
-	MessagingBuilder(final Context context, final Context packageContext, final SharedPreferences preferences, final Controller controller) {
+	MessagingBuilder(final Context context, final Context packageContext, /* final SharedPreferences preferences,  */final Controller controller) {
 		mContext = context;
 		mPackageContext = packageContext;
-		mPreferences = preferences;
+		// mPreferences = preferences;
 		mController = controller;
 		mUserSelf = buildPersonFromProfile(packageContext);
 
@@ -418,7 +418,7 @@ class MessagingBuilder {
 	}
 
 	private final Context mContext, mPackageContext;
-	private final SharedPreferences mPreferences;
+	// private final SharedPreferences mPreferences;
 	private final Controller mController;
 	private final Person mUserSelf;
 	private final String mPrefKeyMentionAction;
