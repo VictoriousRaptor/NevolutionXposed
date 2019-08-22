@@ -85,6 +85,10 @@
 					android:ellipsize="end"
 					android:lines="1"
 					android:singleLine="true"
+					android:shadowColor="#FFFFFF"
+					android:shadowDx="0"
+					android:shadowDy="0"
+					android:shadowRadius="2"
 					android:textSize="16sp"
 					android:textStyle="bold" />
 
@@ -96,6 +100,10 @@
 					android:textStyle="bold"
 					android:lines="1"
 					android:singleLine="true"
+					android:shadowColor="#FFFFFF"
+					android:shadowDx="0"
+					android:shadowDy="0"
+					android:shadowRadius="2"
 					android:textSize="14sp" />
 
 			</LinearLayout>
