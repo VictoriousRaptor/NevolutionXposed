@@ -177,12 +177,77 @@ public abstract class NevoDecoratorService {
 		return map.containsKey(key);
 	}
 
+	/**
+	 * 在应用进程中执行的通知预处理，某些功能（NotificationChannel等）在此实现。
+	 */
+	public static class LocalDecorator {
+		protected final String prefKey;
+		private boolean disabled;
+
+		protected LocalDecorator(String prefKey) { this.prefKey = prefKey; }
+
+		public boolean isDisabled() { return disabled; }
+		public void setDisabled(boolean disabled) { this.disabled = disabled; }
+	
+		@Keep public void onCreate(SharedPreferences pref) {
+			this.disabled = !pref.getBoolean(prefKey  + ".enabled", true);
+			if (BuildConfig.DEBUG) Log.d(TAG, prefKey + ".disabled " + this.disabled);
+		}
+	
+		@Keep public void onDestroy() {}
+		@Keep public Decorating apply(NotificationManager nm, String tag, int id, Notification n) {
+			return Decorating.Unprocessed;
+		}
+	
+	}
+
+	/**
+	 * 在系统UI（SystemUI）中执行的通知处理。
+	 */
+	public static class SystemUIDecorator {
+		protected final String prefKey;
+		private boolean disabled;
+
+		protected SystemUIDecorator(String prefKey) { this.prefKey = prefKey; }
+
+		public boolean isDisabled() { return disabled; }
+		public void setDisabled(boolean disabled) { this.disabled = disabled; }
+	
+		@Keep public void onCreate(SharedPreferences pref) {
+			this.disabled = !pref.getBoolean(prefKey  + ".enabled", true);
+			if (BuildConfig.DEBUG) Log.d(TAG, prefKey + ".disabled " + this.disabled);
+		}
+	
+		@Keep public void onDestroy() {}
+	
+		@Keep public Decorating onNotificationPosted(final StatusBarNotification sbn) {
+			Log.d(TAG, "onNotificationPosted(" + sbn + ")");
+			return Decorating.Unprocessed;
+		}
+		@Keep public void onNotificationRemoved(final StatusBarNotification evolving, final int reason) {
+			Log.d(TAG, "onNotificationRemoved(" + evolving + ", " + reason + ")");
+		}
+
+		protected final void cancelNotification(String key) {
+			Log.d(TAG, "cancelNotification " + key);
+			if (mNLS != null) mNLS.cancelNotification(key);
+		}
+	
+		protected final void recastNotification(final StatusBarNotification sbn) {
+			Log.d(TAG, "recastNotification " + sbn + " " + mNLS);
+			if (mNLS != null) mNLS.onNotificationPosted(sbn, null);
+		}
+	}
+
 	protected final String prefKey;
 	private boolean disabled;
 
 	public NevoDecoratorService() {
 		this.prefKey = getClass().getSimpleName();
 	}
+
+	public LocalDecorator getLocalDecorator() { return null; }
+	public SystemUIDecorator getSystemUIDecorator() { return null; }
 
 	public boolean isDisabled() { return disabled; }
 	public void setDisabled(boolean disabled) { this.disabled = disabled; }
@@ -194,7 +259,6 @@ public abstract class NevoDecoratorService {
 
 	@Keep public void onDestroy() {}
 
-	
 	/**
 	 * 在应用进程中执行的通知预处理，某些功能（NotificationChannel等）在此实现。
 	 */
