@@ -195,6 +195,7 @@ public abstract class NevoDecoratorService {
 		}
 	
 		@Keep public void onDestroy() {}
+	
 		@Keep public Decorating apply(NotificationManager nm, String tag, int id, Notification n) {
 			return Decorating.Unprocessed;
 		}
@@ -240,43 +241,53 @@ public abstract class NevoDecoratorService {
 	}
 
 	protected final String prefKey;
-	private boolean disabled;
+	// private boolean disabled;
 
 	public NevoDecoratorService() {
 		this.prefKey = getClass().getSimpleName();
 	}
 
-	public LocalDecorator getLocalDecorator() { return null; }
-	public SystemUIDecorator getSystemUIDecorator() { return null; }
-
-	public boolean isDisabled() { return disabled; }
-	public void setDisabled(boolean disabled) { this.disabled = disabled; }
-
-	@Keep public void onCreate(SharedPreferences pref) {
-		this.disabled = !pref.getBoolean(prefKey  + ".enabled", true);
-		if (BuildConfig.DEBUG) Log.d(TAG, prefKey + ".disabled " + this.disabled);
+	private LocalDecorator localDecorator;
+	@Keep public LocalDecorator createLocalDecorator(String packageName) { return null; }
+	@Keep public final LocalDecorator getLocalDecorator(String packageName) {
+		if (localDecorator == null) localDecorator = createLocalDecorator(packageName); // 不同package在不同进程，无需映射packageName
+		return localDecorator;
+	}
+	private SystemUIDecorator systemUIDecorator;
+	@Keep public SystemUIDecorator createSystemUIDecorator() { return null; }
+	@Keep public final SystemUIDecorator getSystemUIDecorator() {
+		if (systemUIDecorator == null) systemUIDecorator = createSystemUIDecorator();
+		return systemUIDecorator;
 	}
 
-	@Keep public void onDestroy() {}
+	// public boolean isDisabled() { return disabled; }
+	// public void setDisabled(boolean disabled) { this.disabled = disabled; }
 
-	/**
-	 * 在应用进程中执行的通知预处理，某些功能（NotificationChannel等）在此实现。
-	 */
-	@Keep public void preApply(NotificationManager nm, String tag, int id, Notification n) {}
-	@Keep public Decorating onNotificationPosted(final StatusBarNotification sbn) {
-		apply(sbn);
-		return Decorating.Processed;
-	}
-	/**
-	 * 在系统UI（SystemUI）中执行的通知处理。
-	 */
-	@Deprecated
-	@Keep public void apply(final StatusBarNotification evolving) {}
-	@Keep public void onNotificationRemoved(final StatusBarNotification evolving, final int reason) {
-		Log.d(TAG, "onNotificationRemoved(" + evolving + ", " + reason + ")");
-		onNotificationRemoved(evolving.getKey(), reason);
-	}
-	@Keep public void onNotificationRemoved(final String key, final int reason) {}
+	// @Keep public void onCreate(SharedPreferences pref) {
+	// 	this.disabled = !pref.getBoolean(prefKey  + ".enabled", true);
+	// 	if (BuildConfig.DEBUG) Log.d(TAG, prefKey + ".disabled " + this.disabled);
+	// }
+
+	// @Keep public void onDestroy() {}
+
+	// /**
+	//  * 在应用进程中执行的通知预处理，某些功能（NotificationChannel等）在此实现。
+	//  */
+	// @Keep public void preApply(NotificationManager nm, String tag, int id, Notification n) {}
+	// @Keep public Decorating onNotificationPosted(final StatusBarNotification sbn) {
+	// 	apply(sbn);
+	// 	return Decorating.Processed;
+	// }
+	// /**
+	//  * 在系统UI（SystemUI）中执行的通知处理。
+	//  */
+	// @Deprecated
+	// @Keep public void apply(final StatusBarNotification evolving) {}
+	// @Keep public void onNotificationRemoved(final StatusBarNotification evolving, final int reason) {
+	// 	Log.d(TAG, "onNotificationRemoved(" + evolving + ", " + reason + ")");
+	// 	onNotificationRemoved(evolving.getKey(), reason);
+	// }
+	// @Keep public void onNotificationRemoved(final String key, final int reason) {}
 
 	protected final void cancelNotification(String key) {
 		Log.d(TAG, "cancelNotification " + key);

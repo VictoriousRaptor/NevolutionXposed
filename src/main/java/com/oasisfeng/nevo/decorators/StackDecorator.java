@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import com.oasisfeng.nevo.sdk.Decorating;
 import com.oasisfeng.nevo.sdk.Decorator;
 import com.oasisfeng.nevo.sdk.NevoDecoratorService;
 import com.oasisfeng.nevo.xposed.R;
@@ -39,27 +40,32 @@ public class StackDecorator extends NevoDecoratorService {
 
 	private static final int KMaxNumLines = 10;
 
-	@Override public void apply(final StatusBarNotification evolving) {
-		final Notification n = evolving.getNotification();
-		final String template = n.extras.getString(Notification.EXTRA_TEMPLATE);
-		if (template != null && ! template.equals(TEMPLATE_BIG_TEXT)) return;		// Skip except for BigTextStyle.
+	@Override public SystemUIDecorator createSystemUIDecorator() {
+		return new SystemUIDecorator(this.prefKey) {
+			@Override public Decorating onNotificationPosted(final StatusBarNotification sbn) {
+				final Notification n = sbn.getNotification();
+				final String template = n.extras.getString(Notification.EXTRA_TEMPLATE);
+				if (template != null && ! template.equals(TEMPLATE_BIG_TEXT)) return Decorating.Unprocessed;		// Skip except for BigTextStyle.
 
-		final Collection<StatusBarNotification> history = getArchivedNotifications(evolving.getKey());
-		if (history.size() <= 1) return;
+				final Collection<StatusBarNotification> history = getArchivedNotifications(sbn.getKey());
+				if (history.size() <= 1) return Decorating.Unprocessed;
 
-		final List<CharSequence> lines = new ArrayList<>(KMaxNumLines);
-		for (final StatusBarNotification sbn : history) {
-			final Bundle extras = sbn.getNotification().extras;
-			final CharSequence text = template == null ? extras.getCharSequence(EXTRA_TEXT) : extras.getCharSequence(EXTRA_BIG_TEXT);
-			if (text != null) lines.add(text);
-			if (lines.size() >= KMaxNumLines) break;
-		}
-		if (lines.isEmpty()) return;
-		Collections.reverse(lines);			// Latest first, since earliest lines will be trimmed by InboxStyle.
+				final List<CharSequence> lines = new ArrayList<>(KMaxNumLines);
+				for (final StatusBarNotification sbn0 : history) {
+					final Bundle extras = sbn0.getNotification().extras;
+					final CharSequence text = template == null ? extras.getCharSequence(EXTRA_TEXT) : extras.getCharSequence(EXTRA_BIG_TEXT);
+					if (text != null) lines.add(text);
+					if (lines.size() >= KMaxNumLines) break;
+				}
+				if (lines.isEmpty()) return Decorating.Unprocessed;
+				Collections.reverse(lines);			// Latest first, since earliest lines will be trimmed by InboxStyle.
 
-		n.extras.putString(Notification.EXTRA_TEMPLATE, TEMPLATE_INBOX);
-		n.extras.putCharSequenceArray(Notification.EXTRA_TEXT_LINES, lines.toArray(new CharSequence[lines.size()]));
-		final CharSequence title = n.extras.getCharSequence(Notification.EXTRA_TITLE);
-		if (title != null) n.extras.putCharSequence(Notification.EXTRA_TITLE_BIG, title);
+				n.extras.putString(Notification.EXTRA_TEMPLATE, TEMPLATE_INBOX);
+				n.extras.putCharSequenceArray(Notification.EXTRA_TEXT_LINES, lines.toArray(new CharSequence[lines.size()]));
+				final CharSequence title = n.extras.getCharSequence(Notification.EXTRA_TITLE);
+				if (title != null) n.extras.putCharSequence(Notification.EXTRA_TITLE_BIG, title);
+				return Decorating.Processed;
+			}
+		};
 	}
 }

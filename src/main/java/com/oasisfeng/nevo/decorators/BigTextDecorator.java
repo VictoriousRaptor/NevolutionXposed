@@ -21,6 +21,7 @@ import android.os.Bundle;
 import android.service.notification.StatusBarNotification;
 import android.util.Log;
 
+import com.oasisfeng.nevo.sdk.Decorating;
 import com.oasisfeng.nevo.sdk.Decorator;
 import com.oasisfeng.nevo.sdk.NevoDecoratorService;
 import com.oasisfeng.nevo.xposed.R;
@@ -32,17 +33,22 @@ import com.oasisfeng.nevo.xposed.R;
  */
 @Decorator(title = R.string.decorator_big_text_title, description = R.string.decorator_big_text_description, priority = -20)
 public class BigTextDecorator extends NevoDecoratorService {
+	@Override public SystemUIDecorator createSystemUIDecorator() {
+		return new SystemUIDecorator(this.prefKey) {
+			@Override public Decorating onNotificationPosted(final StatusBarNotification sbn) {
+				Notification n = sbn.getNotification();
+				if (n.bigContentView != null) return Decorating.Unprocessed;
+				final Bundle extras = n.extras;
+				final CharSequence text = extras.getCharSequence(Notification.EXTRA_TEXT);
+				if (text == null) return Decorating.Unprocessed;
+				// Log.d("BigText", "context = " + getPackageContext() + ", text " + text);
+		
+				extras.putCharSequence(Notification.EXTRA_TITLE_BIG, extras.getCharSequence(Notification.EXTRA_TITLE));
+				extras.putCharSequence(Notification.EXTRA_BIG_TEXT, text);
+				extras.putString(Notification.EXTRA_TEMPLATE, TEMPLATE_BIG_TEXT);
 
-	@Override public void apply(final StatusBarNotification evolved) {
-		final Notification n = evolved.getNotification();
-		if (n.bigContentView != null) return;
-		final Bundle extras = n.extras;
-		final CharSequence text = extras.getCharSequence(Notification.EXTRA_TEXT);
-		if (text == null) return;
-		// Log.d("BigText", "context = " + getPackageContext() + ", text " + text);
-
-		extras.putCharSequence(Notification.EXTRA_TITLE_BIG, extras.getCharSequence(Notification.EXTRA_TITLE));
-		extras.putCharSequence(Notification.EXTRA_BIG_TEXT, text);
-		extras.putString(Notification.EXTRA_TEMPLATE, TEMPLATE_BIG_TEXT);
+				return Decorating.Processed;
+			}
+		};
 	}
 }

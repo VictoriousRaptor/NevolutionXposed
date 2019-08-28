@@ -290,14 +290,16 @@ class MessagingBuilder {
 			reply_action.send(mContext, 0, input_data, (pendingIntent, intent, _result_code, _result_data, _result_extras) -> {
 				if (BuildConfig.DEBUG) Log.d(TAG, "Reply sent: " + intent.toUri(0));
 				if (SDK_INT >= N) {
-					final Bundle addition = new Bundle();
 					final CharSequence[] inputs;
 					if (input_history != null) {
 						input_history.add(0, text);
 						inputs = input_history.toArray(new CharSequence[0]);
 					} else inputs = new CharSequence[] { text };
-					addition.putCharSequenceArray(EXTRA_REMOTE_INPUT_HISTORY, inputs);
-					mController.recastNotification(original_key != null ? original_key : key, addition);
+					mController.recastNotification(original_key != null ? original_key : key, sbn -> {
+						final Notification n = sbn.getNotification();
+						final Bundle extras = n.extras;
+						extras.putCharSequenceArray(EXTRA_REMOTE_INPUT_HISTORY, inputs);
+					});
 					markRead(key);
 				}
 			}, null);
@@ -312,7 +314,7 @@ class MessagingBuilder {
 		final Uri data = proxy_intent.getData(); final Bundle results = RemoteInput.getResultsFromIntent(proxy_intent);
 		final String key = data.getSchemeSpecificPart(), original_key = proxy_intent.getStringExtra(EXTRA_ORIGINAL_KEY);
 		// final Bundle addition = new Bundle();
-		mController.recastNotification(original_key != null ? original_key : key, null, sbn -> {
+		mController.recastNotification(original_key != null ? original_key : key, sbn -> {
 			final Notification n = sbn.getNotification();
 			final Bundle extras = n.extras;
 			if (BuildConfig.DEBUG) Log.d(TAG, "bitmap " + extras.getParcelable(Notification.EXTRA_PICTURE));
@@ -389,7 +391,7 @@ class MessagingBuilder {
 		return user.toAndroidPerson();
 	}
 
-	interface Controller { void recastNotification(String key, Bundle addition, WeChatDecorator.ModifyStatusBarNotification... modifies); }
+	interface Controller { void recastNotification(String key, WeChatDecorator.ModifyStatusBarNotification... modifies); }
 
 	MessagingBuilder(final Context context, final Context packageContext, /* final SharedPreferences preferences,  */final Controller controller) {
 		mContext = context;
