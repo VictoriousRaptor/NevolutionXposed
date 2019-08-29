@@ -28,14 +28,14 @@
 	<string name="decorator_wechat_title">WeChat</string>
 	<string name="decorator_wechat_description">Better notification for WeChat: Messaging Style, Direct Reply and Clear to Mark Read.</string>
 	<string name="decorator_wechat_miui_fix">Fix problem in MIUI dev.</string>
-	<string name="self_display_name">你</string>
-	<string name="action_reply">回复</string>
-	<string name="action_zoom">缩放</string>
-	<string name="action_preview_image">预览图片</string>
+	<string name="self_display_name">You</string>
+	<string name="action_reply">Reply</string>
+	<string name="action_zoom">Zoom</string>
+	<string name="action_preview_image">Preview</string>
 
-	<string name="channel_message">新消息通知</string>
-	<string name="channel_group_message">新群组消息通知</string>
-	<string name="channel_misc">其它通知</string>
+	<string name="channel_message">New Message</string>
+	<string name="channel_group_message">New Group Message</string>
+	<string name="channel_misc">Other Notification</string>
 
 	<!-- decorator-miui -->
 

@@ -84,14 +84,20 @@ import com.oasisfeng.nevo.xposed.R;
  */
 @Decorator(title = R.string.decorator_wechat_title, description = R.string.decorator_wechat_description, priority = -20)
 public class WeChatDecorator extends NevoDecoratorService {
-	public class WeChatLocalDecorator extends NevoDecoratorService.LocalDecorator implements HookSupport {
-		public WeChatLocalDecorator(String prefKey) { super(prefKey); }
+	public static class WeChatLocalDecorator extends NevoDecoratorService.LocalDecorator implements HookSupport {
+		
+		private static long now() { return System.currentTimeMillis(); }
+	
+		private final WeChatDecorator decorator;
 
 		private String mPath;
 		private long mCreated, mClosed;
 	
-		private long now() { return System.currentTimeMillis(); }
-	
+		public WeChatLocalDecorator(String prefKey, WeChatDecorator decorator) {
+			super(prefKey);
+			this.decorator = decorator;
+		}
+
 		/**
 		 * 
 		 * Created by Oasis on 2018-11-30.
@@ -169,11 +175,12 @@ public class WeChatDecorator extends NevoDecoratorService {
 				} else if (n.tickerText == null) {		// Legacy misc. notifications.
 					if (SDK_INT >= O && channel_id == null) setChannelId(n, CHANNEL_MISC);
 					Matcher matcher = pattern.matcher(content);
+					if (BuildConfig.DEBUG) Log.d(TAG, "matcher " + matcher.matches());
 					if (matcher.matches()) {
 						// 撤回
 						// Log.d(TAG, matcher.group(0) + ", " + matcher.group(1) + ", " + matcher.group(2) + ", " + matcher.group(3));
 						is_recall = true;
-						recaller = matcher.group(3);
+						recaller = matcher.group("recaller");
 						extras.putBoolean(EXTRA_RECALL, true);
 						extras.putString(EXTRA_RECALLER, recaller);
 						if (BuildConfig.DEBUG) Log.d(TAG, "recaller " + recaller);
@@ -239,7 +246,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 
 		private void reviveNotificationAfterChannelDeletion(final String key) {
 			Log.d(TAG, ("Revive silently: ") + key);
-			recastNotification(key, sbn -> {
+			decorator.recastNotification(key, sbn -> {
 				final Notification n = sbn.getNotification();
 				final Bundle extras = n.extras;
 				extras.putBoolean(KEY_SILENT_REVIVAL, true);
@@ -290,7 +297,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 	
 	}
 
-	public class WeChatSystemUIDecorator extends NevoDecoratorService.SystemUIDecorator {
+	public static class WeChatSystemUIDecorator extends NevoDecoratorService.SystemUIDecorator {
 		
 		private final WeChatDecorator decorator;
 
@@ -336,6 +343,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 			if (BuildConfig.DEBUG) Log.d(TAG, "content_text " + content_text);
 			boolean is_recall = extras.getBoolean(EXTRA_RECALL);
 			String recaller = extras.getString(EXTRA_RECALLER);
+			if (BuildConfig.DEBUG) Log.d(TAG, "recaller " + recaller); // TODO 将撤回消息本身显示在消息记录中
 			if (CHANNEL_MISC.equals(channel_id)) {	// Misc. notifications on Android 8+.
 				return Decorating.Unprocessed;
 			} else if (n.tickerText == null) {		// Legacy misc. notifications.
@@ -455,7 +463,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 	private static final String OLD_CHANNEL_MISC = "misc";								//   old name for migration
 	private static final String CHANNEL_DND = "message_dnd_mode_channel_id";			// Channel ID used by WeChat for its own DND mode
 	private static final String CHANNEL_GROUP_CONVERSATION = "group";					// WeChat has no separate group for group conversation
-	private static final String RECALL_PATTERN = "\\[(\\d+)条\\](\"([^\"]+)\" )?撤回了?一条消息";
+	private static final String RECALL_PATTERN = "(\"(?<recaller>[^\"]+)\" )?撤回了?一条消息";
 	private static final Pattern pattern = Pattern.compile(RECALL_PATTERN);				// [2条]"🦉 " 撤回了一条消息 / [2条]撤回一条消息
 
 	private static final @ColorInt int PRIMARY_COLOR = 0xFF33B332;
@@ -470,7 +478,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 	private static final String STORAGE_PREFIX = "/storage/emulated/0/";
 
 	@Override public LocalDecorator createLocalDecorator(String packageName) {
-		return new WeChatLocalDecorator(prefKey);
+		return new WeChatLocalDecorator(prefKey, this);
 	}
 	@Override public SystemUIDecorator createSystemUIDecorator() {
 		return new WeChatSystemUIDecorator(prefKey, this);

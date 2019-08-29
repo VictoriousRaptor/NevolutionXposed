@@ -152,8 +152,8 @@ public class MainHook implements IXposedHookLoadPackage {
 				protected void afterHookedMethod(MethodHookParam param) {
 					Context context = (Context)param.getResult();
 					if (ref.compareAndSet(null, context)) {
-						XposedBridge.log("onLocalCreate " + context);
-						onCreateLocally(context);
+						XposedBridge.log("onCreate " + context);
+						onCreate(context);
 					}
 				}
 			});
@@ -190,29 +190,8 @@ public class MainHook implements IXposedHookLoadPackage {
 			});
 		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("Notification.Builder hook failed"); }
 	}
-
-	private void hookWeChat(XC_LoadPackage.LoadPackageParam loadPackageParam) {
-		try {
-			final Class<?> clazz = XposedHelpers.findClass("android.app.NotificationManager", loadPackageParam.classLoader);
-			XposedBridge.log("NM clazz: " + clazz);
-			Method method = XposedHelpers.findMethodExact(clazz, "notify", String.class, int.class, Notification.class);
-			XposedBridge.log("NM.notify: " + method);
-			XposedBridge.hookMethod(method, new XC_MethodHook() {
-				@Override
-				protected void beforeHookedMethod(MethodHookParam param) {
-					NotificationManager nm = (NotificationManager)param.thisObject;
-					String tag = (String)param.args[0];
-					int id = (int)param.args[1];
-					Notification n = (Notification)param.args[2];
-					applyLocally(nm, tag, id, n);
-				}
-			});
-		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("NotificationManager hook failed"); }
-		LocalDecorator wechat = this.wechat.getLocalDecorator("com.tencent.mm");
-		if (wechat instanceof HookSupport) ((HookSupport)wechat).hook(loadPackageParam); // TODO 没法用onCreate(XSharedPreferences)实现动态配置，需要搞定
-	}
 	
-	private void onCreateLocally(Context context) {
+	private void onCreate(Context context) {
 		NevoDecoratorService.setAppContext(context);
 
 		SystemUIDecorator wechat = this.wechat.getSystemUIDecorator(),
@@ -221,17 +200,6 @@ public class MainHook implements IXposedHookLoadPackage {
 		wechat.onCreate(pref);
 		miui.onCreate(pref);
 		media.onCreate(pref);
-	}
-	
-	// TODO
-	private void applyLocally(NotificationManager nm, String tag, int id, Notification n) {
-		if (XposedHelpers.getAdditionalInstanceField(n, "pre-applied") != null) {
-			Log.d(TAG, "skip " + n);
-			return;
-		}
-		XposedHelpers.setAdditionalInstanceField(n, "pre-applied", true);
-		LocalDecorator wechat = this.wechat.getLocalDecorator("com.tencent.mm"); // TODO
-		if (!wechat.isDisabled()) wechat.apply(nm, tag, id, n);
 	}
 
 	private void onNotificationPosted(StatusBarNotification sbn) {
@@ -268,5 +236,38 @@ public class MainHook implements IXposedHookLoadPackage {
 			break;
 		}
 		if (!media.isDisabled()) media.onNotificationRemoved(sbn, reason);
+	}
+
+	private void hookWeChat(XC_LoadPackage.LoadPackageParam loadPackageParam) {
+		try {
+			final Class<?> clazz = XposedHelpers.findClass("android.app.NotificationManager", loadPackageParam.classLoader);
+			XposedBridge.log("NM clazz: " + clazz);
+			Method method = XposedHelpers.findMethodExact(clazz, "notify", String.class, int.class, Notification.class);
+			XposedBridge.log("NM.notify: " + method);
+			XposedBridge.hookMethod(method, new XC_MethodHook() {
+				@Override
+				protected void beforeHookedMethod(MethodHookParam param) {
+					NotificationManager nm = (NotificationManager)param.thisObject;
+					String tag = (String)param.args[0];
+					int id = (int)param.args[1];
+					Notification n = (Notification)param.args[2];
+					applyLocally(nm, tag, id, n);
+				}
+			});
+		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("NotificationManager hook failed"); }
+		LocalDecorator wechat = this.wechat.getLocalDecorator("com.tencent.mm");
+		wechat.onCreate(pref);
+		if (wechat instanceof HookSupport) ((HookSupport)wechat).hook(loadPackageParam); // TODO 没法用onCreate(XSharedPreferences)实现动态配置，需要搞定
+	}
+	
+	// TODO
+	private void applyLocally(NotificationManager nm, String tag, int id, Notification n) {
+		if (XposedHelpers.getAdditionalInstanceField(n, "pre-applied") != null) {
+			Log.d(TAG, "skip " + n);
+			return;
+		}
+		XposedHelpers.setAdditionalInstanceField(n, "pre-applied", true);
+		LocalDecorator wechat = this.wechat.getLocalDecorator("com.tencent.mm"); // TODO
+		if (!wechat.isDisabled()) wechat.apply(nm, tag, id, n);
 	}
 }

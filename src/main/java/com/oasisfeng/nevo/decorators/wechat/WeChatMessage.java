@@ -197,8 +197,6 @@ class WeChatMessage {
 		return toMessage(conversation, sender, text, time, null);
 	}
 
-	private static final String STORAGE_PREFIX = "/storage/emulated/0/";
-
 	private static Message toMessage(final Conversation conversation, final @Nullable CharSequence sender, final CharSequence text, final long time, final String picturePath) {
 		final String s = (sender != null) ? sender.toString() : null;
 		final Person person = SELF.equals(sender) ? null : conversation.isGroupChat() ? conversation.getGroupParticipant(s, s) : conversation.sender;
