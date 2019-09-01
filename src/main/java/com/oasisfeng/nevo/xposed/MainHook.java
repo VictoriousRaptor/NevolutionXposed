@@ -159,36 +159,9 @@ public class MainHook implements IXposedHookLoadPackage {
 			});
 		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("ContextImpl hook failed"); }
 		try {
-			final Class<?> clazz = XposedHelpers.findClass("android.app.Notification$Builder", loadPackageParam.classLoader);
-			XposedBridge.log("Builder clazz: " + clazz);
-			// 强制自定义视图
-			XposedBridge.hookAllMethods(clazz, "createContentView", new XC_MethodHook() {
-				@Override
-				protected void beforeHookedMethod(MethodHookParam param) {
-					if (BuildConfig.DEBUG) Log.d(TAG, "createContentView");
-					Notification.Builder builder = (Notification.Builder)param.thisObject;
-					Notification n = (Notification)XposedHelpers.getObjectField(builder, "mN");
-					RemoteViews remoteViews = NevoDecoratorService.overridedContentView(n);
-					if (remoteViews != null) {
-						Log.d(TAG, "cheating createContentView");
-						param.setResult(remoteViews);
-					}
-				}
-			});
-			XposedBridge.hookAllMethods(clazz, "createBigContentView", new XC_MethodHook() {
-				@Override
-				protected void beforeHookedMethod(MethodHookParam param) {
-					if (BuildConfig.DEBUG) Log.d(TAG, "createContentView");
-					Notification.Builder builder = (Notification.Builder)param.thisObject;
-					Notification n = (Notification)XposedHelpers.getObjectField(builder, "mN");
-					RemoteViews remoteViews = NevoDecoratorService.overridedBigContentView(n);
-					if (remoteViews != null) {
-						Log.d(TAG, "cheating createBigContentView");
-						param.setResult(remoteViews);
-					}
-				}
-			});
-		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("Notification.Builder hook failed"); }
+			SystemUIDecorator wechat = this.wechat.getSystemUIDecorator();
+			if ((wechat instanceof HookSupport)) { ((HookSupport)wechat).hook(loadPackageParam); }
+		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log(this.wechat + " hook failed"); }
 	}
 	
 	private void onCreate(Context context) {
@@ -255,9 +228,11 @@ public class MainHook implements IXposedHookLoadPackage {
 				}
 			});
 		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("NotificationManager hook failed"); }
-		LocalDecorator wechat = this.wechat.getLocalDecorator("com.tencent.mm");
-		wechat.onCreate(pref);
-		if (wechat instanceof HookSupport) ((HookSupport)wechat).hook(loadPackageParam); // TODO 没法用onCreate(XSharedPreferences)实现动态配置，需要搞定
+		try {
+			LocalDecorator wechat = this.wechat.getLocalDecorator("com.tencent.mm"); // TODO
+			wechat.onCreate(pref);
+			if (!wechat.isDisabled() && (wechat instanceof HookSupport)) ((HookSupport)wechat).hook(loadPackageParam); // TODO 没法用onCreate(XSharedPreferences)实现动态配置，需要搞定
+		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log(this.wechat + " hook failed"); }
 	}
 	
 	// TODO

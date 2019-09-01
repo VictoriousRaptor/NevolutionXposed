@@ -297,13 +297,45 @@ public class WeChatDecorator extends NevoDecoratorService {
 	
 	}
 
-	public static class WeChatSystemUIDecorator extends NevoDecoratorService.SystemUIDecorator {
+	public static class WeChatSystemUIDecorator extends NevoDecoratorService.SystemUIDecorator implements HookSupport {
 		
 		private final WeChatDecorator decorator;
 
 		public WeChatSystemUIDecorator(String prefKey, WeChatDecorator decorator) {
 			super(prefKey);
 			this.decorator = decorator;
+		}
+
+		@Override public void hook(XC_LoadPackage.LoadPackageParam loadPackageParam) {
+			final Class<?> clazz = XposedHelpers.findClass("android.app.Notification$Builder", loadPackageParam.classLoader);
+			XposedBridge.log("Builder clazz: " + clazz);
+			// 强制自定义视图
+			XposedBridge.hookAllMethods(clazz, "createContentView", new XC_MethodHook() {
+				@Override
+				protected void beforeHookedMethod(MethodHookParam param) {
+					if (BuildConfig.DEBUG) Log.d(TAG, "createContentView");
+					Notification.Builder builder = (Notification.Builder)param.thisObject;
+					Notification n = (Notification)XposedHelpers.getObjectField(builder, "mN");
+					RemoteViews remoteViews = NevoDecoratorService.overridedContentView(n);
+					if (remoteViews != null) {
+						Log.d(TAG, "cheating createContentView");
+						param.setResult(remoteViews);
+					}
+				}
+			});
+			XposedBridge.hookAllMethods(clazz, "createBigContentView", new XC_MethodHook() {
+				@Override
+				protected void beforeHookedMethod(MethodHookParam param) {
+					if (BuildConfig.DEBUG) Log.d(TAG, "createContentView");
+					Notification.Builder builder = (Notification.Builder)param.thisObject;
+					Notification n = (Notification)XposedHelpers.getObjectField(builder, "mN");
+					RemoteViews remoteViews = NevoDecoratorService.overridedBigContentView(n);
+					if (remoteViews != null) {
+						Log.d(TAG, "cheating createBigContentView");
+						param.setResult(remoteViews);
+					}
+				}
+			});
 		}
 
 		@Override public Decorating onNotificationPosted(final StatusBarNotification evolving) {
