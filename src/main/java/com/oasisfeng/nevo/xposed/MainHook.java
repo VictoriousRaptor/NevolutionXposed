@@ -162,6 +162,10 @@ public class MainHook implements IXposedHookLoadPackage {
 			SystemUIDecorator wechat = this.wechat.getSystemUIDecorator();
 			if ((wechat instanceof HookSupport)) { ((HookSupport)wechat).hook(loadPackageParam); }
 		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log(this.wechat + " hook failed"); }
+		/* try {
+			HookSupport fix = new com.notxx.notification.MIUIBetaFixXposed();
+			fix.hook(loadPackageParam);
+		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("fix hook failed"); } */
 	}
 	
 	private void onCreate(Context context) {

@@ -40,6 +40,7 @@ public abstract class NevoDecoratorService {
 	public static final String TEMPLATE_INBOX		= "android.app.Notification$InboxStyle";
 	public static final String TEMPLATE_MEDIA		= "android.app.Notification$MediaStyle";
 	public static final String TEMPLATE_MESSAGING	= "android.app.Notification$MessagingStyle";
+	public static final String TEMPLATE_MESSAGING0	= com.notxx.notification.MIUIBetaFix.class.getName();
 
 	private static final String TAG = "NevoDecoratorService";
 
