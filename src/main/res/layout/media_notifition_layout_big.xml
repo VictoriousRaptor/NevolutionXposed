@@ -38,7 +38,7 @@
 		android:orientation="vertical"
 		android:paddingBottom="12dp"
 		android:paddingStart="16dp"
-		android:paddingEnd="12dp"
+		android:paddingEnd="120dp"
 		android:paddingTop="16dp">
 
 		<LinearLayout
@@ -73,10 +73,7 @@
 			android:ellipsize="end"
 			android:lines="1"
 			android:singleLine="true"
-			android:shadowColor="#FFFFFF"
-			android:shadowDx="0"
-			android:shadowDy="0"
-			android:shadowRadius="2"
+			android:outlineAmbientShadowColor="#FF0000"
 			android:textSize="16sp"
 			android:textStyle="bold" />
 
@@ -88,10 +85,7 @@
 			android:textStyle="bold"
 			android:lines="1"
 			android:singleLine="true"
-			android:shadowColor="#FFFFFF"
-			android:shadowDx="0"
-			android:shadowDy="0"
-			android:shadowRadius="2"
+			android:outlineAmbientShadowColor="#FF0000"
 			android:textSize="14sp" />
 
 		<LinearLayout
