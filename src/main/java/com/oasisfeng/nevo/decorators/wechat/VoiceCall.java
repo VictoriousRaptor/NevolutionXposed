@@ -2,7 +2,6 @@ package com.oasisfeng.nevo.decorators.wechat;
 
 import android.app.Notification;
 import android.content.Context;
-import android.service.notification.StatusBarNotification;
 
 import static android.os.Build.VERSION.SDK_INT;
 import static android.os.Build.VERSION_CODES.O;

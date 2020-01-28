@@ -71,10 +71,9 @@ class MessagingBuilder {
 	private static final String ACTION_REPLY = "REPLY";
 	private static final String ACTION_MENTION = "MENTION";
 	private static final String ACTION_ZOOM = "ZOOM";
-	private static final String SCHEME_KEY = "key";
+	private static final String SCHEME_ID = "id";
 	private static final String EXTRA_REPLY_ACTION = "pending_intent";
 	private static final String EXTRA_RESULT_KEY = "result_key";
-	private static final String EXTRA_ORIGINAL_KEY = "original_key";
 	private static final String EXTRA_REPLY_PREFIX = "reply_prefix";
 
 	private static final String KEY_TEXT = "text";
@@ -105,7 +104,7 @@ class MessagingBuilder {
 	 * @param archieve 消息存档
 	 * @return 会话的图形化
 	 */
-	@Nullable MessagingStyle buildFromArchive(final Conversation conversation, final Notification n, final CharSequence title, final List<StatusBarNotification> archive) {
+	@Nullable MessagingStyle buildFromArchive(final Conversation conversation, final Notification n, final CharSequence title, final List<Notification> archive) {
 		// Chat history in big content view
 		if (archive.isEmpty()) {
 			Log.d(TAG, "No history");
@@ -117,8 +116,7 @@ class MessagingBuilder {
 		CharSequence text;
 		int count = 0, num_lines_with_colon = 0;
 		final String redundant_prefix = title.toString() + SENDER_MESSAGE_SEPARATOR;
-		for (final StatusBarNotification each : archive) {
-			final Notification notification = each.getNotification();
+		for (final Notification notification : archive) {
 			tickerArray.put(notification.when, notification.tickerText);
 			final Bundle its_extras = notification.extras;
 			final CharSequence its_title = EmojiTranslator.translate(its_extras.getCharSequence(Notification.EXTRA_TITLE));
@@ -159,8 +157,7 @@ class MessagingBuilder {
 		return messaging;
 	}
 
-	@Nullable MessagingStyle buildFromExtender(final Conversation conversation, final StatusBarNotification sbn, final CharSequence title, final List<StatusBarNotification> archive) {
-		final Notification n = sbn.getNotification();
+	@Nullable MessagingStyle buildFromExtender(final Conversation conversation, final int id, final Notification n, final CharSequence title, final List<Notification> archive) {
 		final Notification.CarExtender extender = new Notification.CarExtender(n);
 		final CarExtender.UnreadConversation convs = extender.getUnreadConversation();
 		if (convs == null) return null;
@@ -168,13 +165,15 @@ class MessagingBuilder {
 		if (latest_timestamp > 0) n.when = conversation.timestamp = latest_timestamp;
 
 		final PendingIntent on_reply = convs.getReplyPendingIntent();
-		if (conversation.key == null) try {
-			if (on_reply != null) on_reply.send(mContext, 0, null, (p, intent, r, d, b) -> {
-				final String key = conversation.key = intent.getStringExtra(KEY_USERNAME);	// setType() below will trigger rebuilding of conversation sender.
-				conversation.setType(guessType(key));
-			}, null);
-		} catch (final PendingIntent.CanceledException e) {
-			Log.e(TAG, "Error parsing reply intent.", e);
+		if (conversation.key == null) {
+			try {
+				if (on_reply != null) on_reply.send(mContext, 0, null, (p, intent, r, d, b) -> {
+					final String key = conversation.key = intent.getStringExtra(KEY_USERNAME);	// setType() below will trigger rebuilding of conversation sender.
+					conversation.setType(guessType(key));
+				}, null);
+			} catch (final PendingIntent.CanceledException e) {
+				Log.e(TAG, "Error parsing reply intent.", e);
+			}
 		}
 
 		final MessagingStyle messaging = new MessagingStyle(mUserSelf);
@@ -182,28 +181,28 @@ class MessagingBuilder {
 		for (final Message message : messages) messaging.addMessage(message);
 
 		final PendingIntent on_read = convs.getReadPendingIntent();
-		if (on_read != null) mMarkReadPendingIntents.put(sbn.getKey(), on_read);	// Mapped by evolved key,
+		if (on_read != null) mMarkReadPendingIntents.put(id, on_read);	// Mapped by evolved key,
 
 		final List<Action> actions = new ArrayList<>();
 		// 回复
 		final RemoteInput remote_input;
 		if (SDK_INT >= N && on_reply != null && (remote_input = convs.getRemoteInput()) != null) {
 			final CharSequence[] input_history = n.extras.getCharSequenceArray(EXTRA_REMOTE_INPUT_HISTORY);
-			final PendingIntent proxy = proxyDirectReply(sbn, on_reply, remote_input, input_history, null);
+			final PendingIntent proxy = proxyDirectReply(id, n, on_reply, remote_input, input_history, null);
 			final RemoteInput.Builder reply_remote_input = new RemoteInput.Builder(remote_input.getResultKey()).addExtras(remote_input.getExtras())
-					.setAllowFreeFormInput(true).setChoices(SmartReply.generateChoices(messaging));
+					.setAllowFreeFormInput(true);
 			final String participant = convs.getParticipant();	// No need to getParticipants() due to actually only one participant at most, see CarExtender.Builder().
 			if (participant != null) reply_remote_input.setLabel(participant);
 
-			final Action.Builder reply_action = new Action.Builder(null, mPackageContext.getString(R.string.action_reply), proxy)
+			final Action.Builder reply_action = new Action.Builder(null, actionReply, proxy)
 					.addRemoteInput(reply_remote_input.build()).setAllowGeneratedReplies(true);
 			if (SDK_INT >= P) reply_action.setSemanticAction(Action.SEMANTIC_ACTION_REPLY);
 			actions.add(reply_action.build());
 		}
 		// 放大
 		if (n.extras.containsKey(WeChatDecorator.EXTRA_PICTURE_PATH)) {
-			final Intent intent = new Intent(ACTION_ZOOM).setData(Uri.fromParts(SCHEME_KEY, sbn.getKey(), null)).putExtra(EXTRA_ORIGINAL_KEY, WeChatDecorator.getOriginalKey(sbn));
-			final Action.Builder zoom_action = new Action.Builder(null, mPackageContext.getString(R.string.action_zoom), PendingIntent.getBroadcast(mContext, 0, intent.setPackage(mContext.getPackageName()), FLAG_UPDATE_CURRENT));
+			final Intent intent = new Intent(ACTION_ZOOM).setData(Uri.fromParts(SCHEME_ID, Integer.toString(id), null));
+			final Action.Builder zoom_action = new Action.Builder(null, actionZoom, PendingIntent.getBroadcast(mContext, 0, intent.setPackage(mContext.getPackageName()), FLAG_UPDATE_CURRENT));
 			actions.add(zoom_action.build());
 		}
 		WeChatDecorator.setActions(n, actions.toArray(new Action[0]));
@@ -258,11 +257,11 @@ class MessagingBuilder {
 	}
 
 	/** Intercept the PendingIntent in RemoteInput to update the notification with replied message upon success. */
-	private PendingIntent proxyDirectReply(final StatusBarNotification sbn, final PendingIntent on_reply, final RemoteInput remote_input,
+	private PendingIntent proxyDirectReply(final int id, final Notification notification, final PendingIntent on_reply, final RemoteInput remote_input,
 										   final @Nullable CharSequence[] input_history, final @Nullable String mention_prefix) {
 		final Intent proxy = new Intent(mention_prefix != null ? ACTION_MENTION : ACTION_REPLY)		// Separate action to avoid PendingIntent overwrite.
 				.putExtra(EXTRA_REPLY_ACTION, on_reply).putExtra(EXTRA_RESULT_KEY, remote_input.getResultKey())
-				.setData(Uri.fromParts(SCHEME_KEY, sbn.getKey(), null)).putExtra(EXTRA_ORIGINAL_KEY, WeChatDecorator.getOriginalKey(sbn));
+				.setData(Uri.fromParts(SCHEME_ID, Integer.toString(id), null));
 		if (mention_prefix != null) proxy.putExtra(EXTRA_REPLY_PREFIX, mention_prefix);
 		if (SDK_INT >= N && input_history != null)
 			proxy.putCharSequenceArrayListExtra(EXTRA_REMOTE_INPUT_HISTORY, new ArrayList<>(Arrays.asList(input_history)));
@@ -282,7 +281,7 @@ class MessagingBuilder {
 			RemoteInput.addResultsToIntent(new RemoteInput[]{ new RemoteInput.Builder(result_key).build() }, proxy_intent, results);
 		} else text = input;
 		final ArrayList<CharSequence> input_history = SDK_INT >= N ? proxy_intent.getCharSequenceArrayListExtra(EXTRA_REMOTE_INPUT_HISTORY) : null;
-		final String key = data.getSchemeSpecificPart(), original_key = proxy_intent.getStringExtra(EXTRA_ORIGINAL_KEY);
+		final String part = data.getSchemeSpecificPart();
 		try {
 			final Intent input_data = addTargetPackageAndWakeUp(reply_action);
 			input_data.setClipData(proxy_intent.getClipData());
@@ -295,16 +294,16 @@ class MessagingBuilder {
 						input_history.add(0, text);
 						inputs = input_history.toArray(new CharSequence[0]);
 					} else inputs = new CharSequence[] { text };
-					mController.recastNotification(original_key != null ? original_key : key, sbn -> {
-						final Notification n = sbn.getNotification();
+					final int id = Integer.parseInt(part);
+					mController.recastNotification(id, n -> {
 						final Bundle extras = n.extras;
 						extras.putCharSequenceArray(EXTRA_REMOTE_INPUT_HISTORY, inputs);
 					});
-					markRead(key);
+					markRead(id);
 				}
 			}, null);
 		} catch (final PendingIntent.CanceledException e) {
-			Log.w(TAG, "Reply action is already cancelled: " + key);
+			Log.w(TAG, "Reply action is already cancelled: " + part);
 			abortBroadcast();
 		}
 	} };
@@ -312,10 +311,9 @@ class MessagingBuilder {
 	private final BroadcastReceiver mZoomReceiver = new BroadcastReceiver() { @Override public void onReceive(final Context context, final Intent proxy_intent) {
 		final String action = proxy_intent.getAction();
 		final Uri data = proxy_intent.getData(); final Bundle results = RemoteInput.getResultsFromIntent(proxy_intent);
-		final String key = data.getSchemeSpecificPart(), original_key = proxy_intent.getStringExtra(EXTRA_ORIGINAL_KEY);
+		final String key = data.getSchemeSpecificPart();
 		// final Bundle addition = new Bundle();
-		mController.recastNotification(original_key != null ? original_key : key, sbn -> {
-			final Notification n = sbn.getNotification();
+		mController.recastNotification(Integer.parseInt(key), n -> {
 			final Bundle extras = n.extras;
 			if (BuildConfig.DEBUG) Log.d(TAG, "bitmap " + extras.getParcelable(Notification.EXTRA_PICTURE));
 			if (TEMPLATE_MESSAGING.equals(extras.getString(Notification.EXTRA_TEMPLATE))) {
@@ -333,14 +331,14 @@ class MessagingBuilder {
 		});
 	} };
 
-	/** @param key the evolved key */
-	void markRead(final String key) {
-		final PendingIntent action = mMarkReadPendingIntents.remove(key);
+	/** @param id the notification id */
+	void markRead(final int id) {
+		final PendingIntent action = mMarkReadPendingIntents.remove(id);
 		if (action == null) return;
 		try {
 			action.send(mContext, 0, addTargetPackageAndWakeUp(action));
 		} catch (final PendingIntent.CanceledException e) {
-			Log.w(TAG, "Mark-read action is already cancelled: " + key);
+			Log.w(TAG, "Mark-read action is already cancelled: " + id);
 		}
 	}
 
@@ -391,39 +389,40 @@ class MessagingBuilder {
 		return user.toAndroidPerson();
 	}
 
-	interface Controller { void recastNotification(String key, WeChatDecorator.ModifyStatusBarNotification... modifies); }
+	interface Controller { void recastNotification(int id, WeChatDecorator.ModifyNotification... modifies); }
 
 	MessagingBuilder(final Context context, final Context packageContext, /* final SharedPreferences preferences,  */final Controller controller) {
 		mContext = context;
-		mPackageContext = packageContext;
+		actionReply = packageContext.getString(R.string.action_reply);
+		actionZoom = packageContext.getString(R.string.action_zoom);
 		// mPreferences = preferences;
 		mController = controller;
-		mUserSelf = buildPersonFromProfile(packageContext);
+		mUserSelf = buildPersonFromProfile(packageContext.getString(R.string.self_display_name));
 
-		mPrefKeyMentionAction = packageContext.getString(R.string.pref_mention_action);
 		{
-			final IntentFilter filter = new IntentFilter(ACTION_REPLY); filter.addAction(ACTION_MENTION); filter.addDataScheme(SCHEME_KEY);
+			final IntentFilter filter = new IntentFilter(ACTION_REPLY); filter.addAction(ACTION_MENTION); filter.addDataScheme(SCHEME_ID);
 			context.registerReceiver(mReplyReceiver, filter);
 		}
 		{
-			final IntentFilter filter = new IntentFilter(ACTION_ZOOM); filter.addDataScheme(SCHEME_KEY);
+			final IntentFilter filter = new IntentFilter(ACTION_ZOOM); filter.addDataScheme(SCHEME_ID);
 			context.registerReceiver(mZoomReceiver, filter);
 		}
 	}
 
-	private static Person buildPersonFromProfile(final Context packageContext) {
-		return new Person.Builder().setName(packageContext.getString(R.string.self_display_name)).build();
+	private static Person buildPersonFromProfile(final String selfDisplayName) {
+		return new Person.Builder().setName(selfDisplayName).build();
 	}
 
 	void close() {
 		try { mContext.unregisterReceiver(mReplyReceiver); } catch (final RuntimeException ignored) {}
+		try { mContext.unregisterReceiver(mZoomReceiver); } catch (final RuntimeException ignored) {}
 	}
 
-	private final Context mContext, mPackageContext;
+	private final Context mContext;
+	private final String actionReply, actionZoom;
 	// private final SharedPreferences mPreferences;
 	private final Controller mController;
 	private final Person mUserSelf;
-	private final String mPrefKeyMentionAction;
-	private final Map<String/* evolved key */, PendingIntent> mMarkReadPendingIntents = new ArrayMap<>();
+	private final Map<Integer/* notification id */, PendingIntent> mMarkReadPendingIntents = new ArrayMap<>();
 	private static final String TAG = WeChatDecorator.TAG;
 }

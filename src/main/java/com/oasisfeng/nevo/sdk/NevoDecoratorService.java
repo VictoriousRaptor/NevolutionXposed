@@ -23,10 +23,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
+import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 import com.oasisfeng.nevo.xposed.BuildConfig;
+import com.oasisfeng.nevo.xposed.R;
 
 public abstract class NevoDecoratorService {
 	private static final int MAX_NUM_ARCHIVED = 20;
@@ -40,7 +42,6 @@ public abstract class NevoDecoratorService {
 	public static final String TEMPLATE_INBOX		= "android.app.Notification$InboxStyle";
 	public static final String TEMPLATE_MEDIA		= "android.app.Notification$MediaStyle";
 	public static final String TEMPLATE_MESSAGING	= "android.app.Notification$MessagingStyle";
-	public static final String TEMPLATE_MESSAGING0	= com.notxx.notification.MIUIBetaFix.class.getName();
 
 	private static final String TAG = "NevoDecoratorService";
 
@@ -50,6 +51,7 @@ public abstract class NevoDecoratorService {
 
 	private static volatile Context appContext, packageContext;
 	private static volatile NotificationListenerService mNLS;
+	private static volatile NotificationManager mNM;
 
 	public static Context getAppContext() {
 		if (appContext == null)
@@ -63,6 +65,10 @@ public abstract class NevoDecoratorService {
 
 	public static void setNLS(NotificationListenerService nls) {
 		mNLS = nls;
+	}
+
+	public static void setNM(NotificationManager nm) {
+		mNM = nm;
 	}
 
 	protected static Context getPackageContext() {
@@ -152,6 +158,7 @@ public abstract class NevoDecoratorService {
 	}
 
 	private static final Map<String, LinkedList<StatusBarNotification>> map = new WeakHashMap<>();
+	private static final Map<Integer, LinkedList<Notification>> map0 = new WeakHashMap<>();
 
 	protected static void cache(StatusBarNotification sbn) {
 		final String key = sbn.getKey();
@@ -178,6 +185,32 @@ public abstract class NevoDecoratorService {
 		return map.containsKey(key);
 	}
 
+	protected static void cache0(final int id, final Notification n) {
+		Log.d(TAG, "cache0 id " + id);
+		LinkedList<Notification> queue = map0.get(id);
+		if (queue == null) {
+			queue = new LinkedList<>();
+			map0.put(id, queue);
+		}
+		queue.add(n);
+		Log.d(TAG, "cache0 queue " + queue);
+		if (queue.size() > MAX_NUM_ARCHIVED) queue.remove();
+	}
+
+	protected static List<Notification> getArchivedNotifications0(int key) {
+		LinkedList<Notification> queue = map0.get(key);
+		return queue != null ? new ArrayList<>(queue) : new ArrayList<>();
+	}
+
+	protected static Notification getArchivedNotification0(int key) {
+		LinkedList<Notification> queue = map0.get(key);
+		return queue.getLast();
+	}
+
+	protected static boolean hasArchivedNotifications0(int key) {
+		return map0.containsKey(key);
+	}
+
 	/**
 	 * 在应用进程中执行的通知预处理，某些功能（NotificationChannel等）在此实现。
 	 */
@@ -200,12 +233,12 @@ public abstract class NevoDecoratorService {
 		@Keep public Decorating apply(NotificationManager nm, String tag, int id, Notification n) {
 			return Decorating.Unprocessed;
 		}
-	
 	}
 
 	/**
 	 * 在系统UI（SystemUI）中执行的通知处理。
 	 */
+	@Deprecated
 	public static class SystemUIDecorator {
 		protected final String prefKey;
 		private boolean disabled;
@@ -233,11 +266,6 @@ public abstract class NevoDecoratorService {
 		protected final void cancelNotification(String key) {
 			Log.d(TAG, "cancelNotification " + key);
 			if (mNLS != null) mNLS.cancelNotification(key);
-		}
-	
-		protected final void recastNotification(final StatusBarNotification sbn) {
-			Log.d(TAG, "recastNotification " + sbn + " " + mNLS);
-			if (mNLS != null) mNLS.onNotificationPosted(sbn, null);
 		}
 	}
 
@@ -290,13 +318,18 @@ public abstract class NevoDecoratorService {
 	// }
 	// @Keep public void onNotificationRemoved(final String key, final int reason) {}
 
-	protected final void cancelNotification(String key) {
-		Log.d(TAG, "cancelNotification " + key);
-		if (mNLS != null) mNLS.cancelNotification(key);
+	protected final void cancelNotification(int id) {
+		Log.d(TAG, "cancelNotification " + id);
+		if (mNM != null) mNM.cancel(null, id);
 	}
 
 	protected final void recastNotification(final StatusBarNotification sbn) {
 		Log.d(TAG, "recastNotification " + sbn + " " + mNLS);
 		if (mNLS != null) mNLS.onNotificationPosted(sbn, null);
+	}
+
+	protected final void recastNotification0(final int id, final Notification n) {
+		Log.d(TAG, "recastNotification0 " + n.extras.getCharSequence(Notification.EXTRA_TITLE));
+		if (mNM != null) mNM.notify(null, id, n);
 	}
 }

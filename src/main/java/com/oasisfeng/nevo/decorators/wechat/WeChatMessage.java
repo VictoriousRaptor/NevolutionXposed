@@ -2,7 +2,6 @@ package com.oasisfeng.nevo.decorators.wechat;
 
 import android.app.Notification;
 import android.net.Uri;
-import android.service.notification.StatusBarNotification;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -39,7 +38,7 @@ class WeChatMessage {
 	static final String SENDER_MESSAGE_SEPARATOR = ": ";
 	private static final String SELF = "";
 
-	static Message[] buildFromCarConversation(final Conversation conversation, final Notification.CarExtender.UnreadConversation convs, final List<StatusBarNotification> archive) {
+	static Message[] buildFromCarConversation(final Conversation conversation, final Notification.CarExtender.UnreadConversation convs, final List<Notification> archive) {
 		final String[] car_messages = convs.getMessages();
 		if (car_messages.length == 0) return new Message[] { buildFromBasicFields(conversation) };	// No messages in car conversation
 
@@ -63,7 +62,7 @@ class WeChatMessage {
 		// 	Log.d(TAG, n.tickerText + ", " + n.extras.getCharSequence(android.app.Notification.EXTRA_TEXT)+ ", " + n.when);
 		// }
 		for (int i = archive.size() - 1, diff = archive.size() - car_messages.length; i >= 0 && i >= diff; i--) {
-			notifications[i - diff] =  archive.get(i).getNotification();
+			notifications[i - diff] =  archive.get(i);
 		}
 		int end_of_peers = -1;
 		if (! conversation.isGroupChat()) for (end_of_peers = car_messages.length - 1; end_of_peers >= -1; end_of_peers --)

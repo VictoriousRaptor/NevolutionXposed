@@ -58,6 +58,11 @@ android {
 		release {
 			signingConfig signingConfigs.release
 		}
+		debug {
+			debuggable true
+			signingConfig signingConfigs.release
+			minifyEnabled false
+		}
 	}
 
 	sourceSets {
