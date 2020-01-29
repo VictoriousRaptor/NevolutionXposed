@@ -45,10 +45,6 @@ public abstract class NevoDecoratorService {
 
 	private static final String TAG = "NevoDecoratorService";
 
-	protected interface BindRemoteViews {
-		void bind(RemoteViews remoteViews);
-	}
-
 	private static volatile Context appContext, packageContext;
 	private static volatile NotificationListenerService mNLS;
 	private static volatile NotificationManager mNM;
@@ -91,52 +87,6 @@ public abstract class NevoDecoratorService {
 		return getPackageContext().getString(key);
 	}
 
-	public static void setId(StatusBarNotification sbn, int id) {
-		XposedHelpers.setIntField(sbn, "id", id);
-	}
-
-	public static void setNotification(StatusBarNotification sbn, Notification n) {
-		XposedHelpers.setObjectField(sbn, "notification", n);
-	}
-
-	public static int getOriginalId(StatusBarNotification sbn) {
-		return (Integer)XposedHelpers.getAdditionalInstanceField(sbn, "originalId");
-	}
-
-	public static void setOriginalId(StatusBarNotification sbn, int id) {
-		XposedHelpers.setAdditionalInstanceField(sbn, "originalId", (Integer)id);
-	}
-
-	public static String getOriginalKey(StatusBarNotification sbn) {
-		return (String)XposedHelpers.getAdditionalInstanceField(sbn, "originalKey");
-	}
-
-	public static void setOriginalKey(StatusBarNotification sbn, String key) {
-		XposedHelpers.setAdditionalInstanceField(sbn, "originalKey", key);
-	}
-
-	public static void setOriginalTag(StatusBarNotification sbn, String tag) {
-		XposedHelpers.setAdditionalInstanceField(sbn, "originalTag", tag);
-	}
-
-	public static RemoteViews overrideBigContentView(Notification n, RemoteViews remoteViews) {
-		n.extras.putParcelable(EXTRAS_BIG_CONTENT_VIEW_OVERRIDE, remoteViews);
-		return remoteViews;
-	}
-
-	public static RemoteViews overridedBigContentView(Notification n) {
-		return n.extras.getParcelable(EXTRAS_BIG_CONTENT_VIEW_OVERRIDE);
-	}
-
-	public static RemoteViews overrideContentView(Notification n, RemoteViews remoteViews) {
-		n.extras.putParcelable(EXTRAS_CONTENT_VIEW_OVERRIDE, remoteViews);
-		return remoteViews;
-	}
-
-	public static RemoteViews overridedContentView(Notification n) {
-		return (RemoteViews)n.extras.getParcelable(EXTRAS_CONTENT_VIEW_OVERRIDE);
-	}
-
 	public static void setChannelId(Notification n, String channelId) {
 		XposedHelpers.setObjectField(n, "mChannelId", channelId);
 	}
@@ -157,179 +107,86 @@ public abstract class NevoDecoratorService {
 		XposedHelpers.setObjectField(n, "actions", actions);
 	}
 
-	private static final Map<String, LinkedList<StatusBarNotification>> map = new WeakHashMap<>();
-	private static final Map<Integer, LinkedList<Notification>> map0 = new WeakHashMap<>();
+	private static final Map<Integer, LinkedList<Notification>> map = new WeakHashMap<>();
 
-	protected static void cache(StatusBarNotification sbn) {
-		final String key = sbn.getKey();
-		LinkedList<StatusBarNotification> queue = map.get(key);
+	protected static void cache(final int id, final Notification n) {
+		Log.d(TAG, "cache id " + id);
+		LinkedList<Notification> queue = map.get(id);
 		if (queue == null) {
 			queue = new LinkedList<>();
-			map.put(key, queue);
-		}
-		queue.add(sbn);
-		if (queue.size() > MAX_NUM_ARCHIVED) queue.remove();
-	}
-
-	protected static List<StatusBarNotification> getArchivedNotifications(String key) {
-		LinkedList<StatusBarNotification> queue = map.get(key);
-		return queue != null ? new ArrayList<>(queue) : new ArrayList<>();
-	}
-
-	protected static StatusBarNotification getArchivedNotification(String key) {
-		LinkedList<StatusBarNotification> queue = map.get(key);
-		return queue.getLast();
-	}
-
-	protected static boolean hasArchivedNotifications(String key) {
-		return map.containsKey(key);
-	}
-
-	protected static void cache0(final int id, final Notification n) {
-		Log.d(TAG, "cache0 id " + id);
-		LinkedList<Notification> queue = map0.get(id);
-		if (queue == null) {
-			queue = new LinkedList<>();
-			map0.put(id, queue);
+			map.put(id, queue);
 		}
 		queue.add(n);
-		Log.d(TAG, "cache0 queue " + queue);
+		Log.d(TAG, "cache queue " + queue);
 		if (queue.size() > MAX_NUM_ARCHIVED) queue.remove();
 	}
 
-	protected static List<Notification> getArchivedNotifications0(int key) {
-		LinkedList<Notification> queue = map0.get(key);
+	protected static List<Notification> getArchivedNotifications(int key) {
+		LinkedList<Notification> queue = map.get(key);
 		return queue != null ? new ArrayList<>(queue) : new ArrayList<>();
 	}
 
-	protected static Notification getArchivedNotification0(int key) {
-		LinkedList<Notification> queue = map0.get(key);
+	protected static Notification getArchivedNotification(int key) {
+		LinkedList<Notification> queue = map.get(key);
 		return queue.getLast();
 	}
 
-	protected static boolean hasArchivedNotifications0(int key) {
-		return map0.containsKey(key);
+	protected static boolean hasArchivedNotifications(int key) {
+		return map.containsKey(key);
 	}
 
 	/**
 	 * 在应用进程中执行的通知预处理，某些功能（NotificationChannel等）在此实现。
 	 */
-	public static class LocalDecorator {
-		protected final String prefKey;
-		private boolean disabled;
+	// public static class LocalDecorator {
+	// 	protected final String prefKey;
+	// 	private boolean disabled;
 
-		protected LocalDecorator(String prefKey) { this.prefKey = prefKey; }
+	// 	protected LocalDecorator(String prefKey) { this.prefKey = prefKey; }
 
-		public boolean isDisabled() { return disabled; }
-		public void setDisabled(boolean disabled) { this.disabled = disabled; }
+	// 	public boolean isDisabled() { return disabled; }
+	// 	public void setDisabled(boolean disabled) { this.disabled = disabled; }
 	
-		@Keep public void onCreate(SharedPreferences pref) {
-			this.disabled = !pref.getBoolean(prefKey  + ".enabled", true);
-			if (BuildConfig.DEBUG) Log.d(TAG, prefKey + ".disabled " + this.disabled);
-		}
+	// 	@Keep public void onCreate(SharedPreferences pref) {
+	// 		this.disabled = !pref.getBoolean(prefKey  + ".enabled", true);
+	// 		if (BuildConfig.DEBUG) Log.d(TAG, prefKey + ".disabled " + this.disabled);
+	// 	}
 	
-		@Keep public void onDestroy() {}
+	// 	@Keep public void onDestroy() {}
 	
-		@Keep public Decorating apply(NotificationManager nm, String tag, int id, Notification n) {
-			return Decorating.Unprocessed;
-		}
-	}
-
-	/**
-	 * 在系统UI（SystemUI）中执行的通知处理。
-	 */
-	@Deprecated
-	public static class SystemUIDecorator {
-		protected final String prefKey;
-		private boolean disabled;
-
-		protected SystemUIDecorator(String prefKey) { this.prefKey = prefKey; }
-
-		public boolean isDisabled() { return disabled; }
-		public void setDisabled(boolean disabled) { this.disabled = disabled; }
-	
-		@Keep public void onCreate(SharedPreferences pref) {
-			this.disabled = !pref.getBoolean(prefKey  + ".enabled", true);
-			if (BuildConfig.DEBUG) Log.d(TAG, prefKey + ".disabled " + this.disabled);
-		}
-	
-		@Keep public void onDestroy() {}
-	
-		@Keep public Decorating onNotificationPosted(final StatusBarNotification sbn) {
-			Log.d(TAG, "onNotificationPosted(" + sbn + ")");
-			return Decorating.Unprocessed;
-		}
-		@Keep public void onNotificationRemoved(final StatusBarNotification evolving, final int reason) {
-			Log.d(TAG, "onNotificationRemoved(" + evolving + ", " + reason + ")");
-		}
-
-		protected final void cancelNotification(String key) {
-			Log.d(TAG, "cancelNotification " + key);
-			if (mNLS != null) mNLS.cancelNotification(key);
-		}
-	}
+	// 	@Keep public Decorating apply(NotificationManager nm, String tag, int id, Notification n) {
+	// 		return Decorating.Unprocessed;
+	// 	}
+	// }
 
 	protected final String prefKey;
-	// private boolean disabled;
+	private boolean disabled;
 
 	public NevoDecoratorService() {
 		this.prefKey = getClass().getSimpleName();
 	}
 
-	private LocalDecorator localDecorator;
-	@Keep public LocalDecorator createLocalDecorator(String packageName) { return null; }
-	@Keep public final LocalDecorator getLocalDecorator(String packageName) {
-		if (localDecorator == null) localDecorator = createLocalDecorator(packageName); // 不同package在不同进程，无需映射packageName
-		return localDecorator;
-	}
-	private SystemUIDecorator systemUIDecorator;
-	@Keep public SystemUIDecorator createSystemUIDecorator() { return null; }
-	@Keep public final SystemUIDecorator getSystemUIDecorator() {
-		if (systemUIDecorator == null) systemUIDecorator = createSystemUIDecorator();
-		return systemUIDecorator;
+	public boolean isDisabled() { return disabled; }
+	public void setDisabled(boolean disabled) { this.disabled = disabled; }
+
+	@Keep public void onCreate(SharedPreferences pref) {
+		this.disabled = !pref.getBoolean(prefKey  + ".enabled", true);
+		if (BuildConfig.DEBUG) Log.d(TAG, prefKey + ".disabled " + this.disabled);
 	}
 
-	// public boolean isDisabled() { return disabled; }
-	// public void setDisabled(boolean disabled) { this.disabled = disabled; }
+	@Keep public void onDestroy() {}
 
-	// @Keep public void onCreate(SharedPreferences pref) {
-	// 	this.disabled = !pref.getBoolean(prefKey  + ".enabled", true);
-	// 	if (BuildConfig.DEBUG) Log.d(TAG, prefKey + ".disabled " + this.disabled);
-	// }
-
-	// @Keep public void onDestroy() {}
-
-	// /**
-	//  * 在应用进程中执行的通知预处理，某些功能（NotificationChannel等）在此实现。
-	//  */
-	// @Keep public void preApply(NotificationManager nm, String tag, int id, Notification n) {}
-	// @Keep public Decorating onNotificationPosted(final StatusBarNotification sbn) {
-	// 	apply(sbn);
-	// 	return Decorating.Processed;
-	// }
-	// /**
-	//  * 在系统UI（SystemUI）中执行的通知处理。
-	//  */
-	// @Deprecated
-	// @Keep public void apply(final StatusBarNotification evolving) {}
-	// @Keep public void onNotificationRemoved(final StatusBarNotification evolving, final int reason) {
-	// 	Log.d(TAG, "onNotificationRemoved(" + evolving + ", " + reason + ")");
-	// 	onNotificationRemoved(evolving.getKey(), reason);
-	// }
-	// @Keep public void onNotificationRemoved(final String key, final int reason) {}
+	@Keep public Decorating apply(NotificationManager nm, String tag, int id, Notification n) {
+		return Decorating.Unprocessed;
+	}
 
 	protected final void cancelNotification(int id) {
-		Log.d(TAG, "cancelNotification " + id);
+		Log.d(TAG, "cancelNotification " + mNM + " " + id);
 		if (mNM != null) mNM.cancel(null, id);
 	}
 
-	protected final void recastNotification(final StatusBarNotification sbn) {
-		Log.d(TAG, "recastNotification " + sbn + " " + mNLS);
-		if (mNLS != null) mNLS.onNotificationPosted(sbn, null);
-	}
-
-	protected final void recastNotification0(final int id, final Notification n) {
-		Log.d(TAG, "recastNotification0 " + n.extras.getCharSequence(Notification.EXTRA_TITLE));
+	protected final void recastNotification(final int id, final Notification n) {
+		Log.d(TAG, "recastNotification " + mNM + " " + n.extras.getCharSequence(Notification.EXTRA_TITLE));
 		if (mNM != null) mNM.notify(null, id, n);
 	}
 }
