@@ -26,6 +26,7 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.graphics.drawable.Icon;
 import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Bundle;
@@ -52,6 +53,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.annotation.StringRes;
 import androidx.core.app.NotificationCompat.MessagingStyle;
+import androidx.core.graphics.drawable.IconCompat;
 
 import static android.os.Build.VERSION.SDK_INT;
 import static android.os.Build.VERSION_CODES.N;
@@ -170,7 +172,7 @@ public class WeChatDecorator extends NevoDecoratorService implements HookSupport
 
 	@Override public Decorating apply(NotificationManager nm, String tag, int id, Notification n) {
 		mWeChatTargetingO = isWeChatTargeting26OrAbove();
-		Log.d(TAG, "apply tag " + tag + " id " + id);
+		if (BuildConfig.DEBUG) Log.d(TAG, "apply tag " + tag + " id " + id);
 		cache(id, n);
 
 		final Bundle extras = n.extras;
@@ -257,7 +259,9 @@ public class WeChatDecorator extends NevoDecoratorService implements HookSupport
 		//   causing conversation duplicate or overwritten notifications.
 		final Conversation conversation = mConversationManager.getConversation(id);
 
-		conversation.setTitle(title);
+		final Icon icon = n.getLargeIcon();
+		conversation.icon = icon != null ? IconCompat.createFromIcon(getAppContext(), icon) : null;
+		conversation.title = title;
 		conversation.summary = content;
 		conversation.ticker = n.tickerText;
 		conversation.timestamp = n.when;

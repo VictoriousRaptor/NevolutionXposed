@@ -139,7 +139,7 @@ class WeChatMessage {
 	static int guessConversationType(final Conversation conversation) {
 		final CharSequence content = conversation.summary;
 		final String ticker = conversation.ticker.toString().trim();	// Ticker text (may contain trailing spaces) always starts with sender (same as title for direct message, but not for group chat).
-		final CharSequence title = conversation.getTitle();
+		final CharSequence title = conversation.title;
 		return guessConversationType(content, ticker, title);
 	}
 
@@ -174,7 +174,7 @@ class WeChatMessage {
 		pos = from_self ? 0 : TextUtils.indexOf(message, SENDER_MESSAGE_SEPARATOR);
 		if (pos > 0) {
 			sender = message.substring(0, pos);
-			final boolean title_as_sender = TextUtils.equals(sender, conversation.getTitle());
+			final boolean title_as_sender = TextUtils.equals(sender, conversation.title);
 			if (conversation.isGroupChat() || title_as_sender) {	// Verify the sender with title for non-group conversation
 				text = message.substring(pos + SENDER_MESSAGE_SEPARATOR.length());
 				if (conversation.isGroupChat() && title_as_sender) sender = SELF;		// WeChat incorrectly use group chat title as sender for self-sent messages.
@@ -184,7 +184,7 @@ class WeChatMessage {
 		pos = from_self ? 0 : TextUtils.indexOf(ticker, SENDER_MESSAGE_SEPARATOR);
 		if (pos > 0) {
 			sender = ticker.toString().substring(0, pos);
-			final boolean title_as_sender = TextUtils.equals(sender, conversation.getTitle());
+			final boolean title_as_sender = TextUtils.equals(sender, conversation.title);
 			if (conversation.isGroupChat() || title_as_sender) {	// Verify the sender with title for non-group conversation
 				if (conversation.isGroupChat() && title_as_sender) sender = SELF;		// WeChat incorrectly use group chat title as sender for self-sent messages.
 			} else sender = null;		// Not really the sender name, revert the parsing result.
@@ -198,7 +198,7 @@ class WeChatMessage {
 
 	private static Message toMessage(final Conversation conversation, final @Nullable CharSequence sender, final CharSequence text, final long time, final String picturePath) {
 		final String s = (sender != null) ? sender.toString() : null;
-		final Person person = SELF.equals(sender) ? null : conversation.isGroupChat() ? conversation.getGroupParticipant(s, s) : conversation.sender;
+		final Person person = SELF.equals(sender) ? null : conversation.isGroupChat() ? conversation.getGroupParticipant(s, s) : conversation.sender().build();
 		Message r = new Message(EmojiTranslator.translate(text), time, person);
 		if (picturePath != null) {
 			if (BuildConfig.DEBUG) Log.d(TAG, "message.setData " + picturePath);

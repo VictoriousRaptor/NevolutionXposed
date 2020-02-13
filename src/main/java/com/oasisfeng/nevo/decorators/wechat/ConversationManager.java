@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 import androidx.annotation.IntDef;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.app.Person;
 import androidx.core.graphics.drawable.IconCompat;
@@ -42,10 +43,12 @@ class ConversationManager {
 		final int id;
 		@Nullable String key;
 		int count;
+		CharSequence title;
 		CharSequence summary;
 		CharSequence ticker;
 		long timestamp;
-		Person sender = SENDER_PLACEHOLDER;
+		IconCompat icon;
+		private @Nullable Person.Builder sender;
 
 		int getType() { return mType; }
 
@@ -54,24 +57,35 @@ class ConversationManager {
 			if (type == mType) return type;
 			final int previous_type = mType;
 			mType = type;
-			sender = type == TYPE_UNKNOWN || type == TYPE_GROUP_CHAT ? SENDER_PLACEHOLDER
-					: sender.toBuilder().setKey(key).setBot(type == TYPE_BOT_MESSAGE).build();	// Always set key as it may change
+			sender = type == TYPE_UNKNOWN || type == TYPE_GROUP_CHAT ? null	: sender().setKey(key).setBot(type == TYPE_BOT_MESSAGE);	// Always set key as it may change
 			if (type != TYPE_GROUP_CHAT) mParticipants.clear();
 			return previous_type;
+		}
+
+		@NonNull Person.Builder sender() {
+			return sender != null ? sender : new Person.Builder() { @NonNull @Override public Person build() {
+				switch (mType) {
+				case TYPE_GROUP_CHAT:
+				case TYPE_GC_RECALL:
+					return SENDER_PLACEHOLDER;
+				case TYPE_BOT_MESSAGE:
+					setBot(true);	// Fall-through
+				case TYPE_UNKNOWN:
+				case TYPE_DIRECT_MESSAGE:
+				case TYPE_DM_RECALL:
+					setIcon(icon).setName(title != null ? title : " ");		// Cannot be empty string, or it will be treated as null.
+					break;
+				}
+				Person r = super.build();
+				// Log.d(TAG, "Person " + r.getIcon() + " " + r.getName());
+				return r;
+			}};
 		}
 
 		static boolean isGroupChat(int mType) { return mType == TYPE_GROUP_CHAT || mType == TYPE_GC_RECALL; }
 		boolean isGroupChat() { return isGroupChat(mType); }
 		static boolean isRecall(int mType) { return mType == TYPE_DM_RECALL || mType == TYPE_GC_RECALL; }
 		boolean isRecall() { return isRecall(mType); }
-
-		CharSequence getTitle() { return mTitle; }
-
-		void setTitle(final CharSequence title) {
-			if (TextUtils.equals(title, mTitle)) return;
-			mTitle = title;
-			sender = sender.toBuilder().setName(title).build();		// Rename the sender
-		}
 
 		Person getGroupParticipant(final String key, final String name) {
 			if (! isGroupChat()) throw new IllegalStateException("Not group chat");
@@ -99,7 +113,6 @@ class ConversationManager {
 		Conversation(final int id) { this.id = id; }
 
 		@ConversationType private int mType;
-		private CharSequence mTitle;
 		private final Map<String, Person> mParticipants = new ArrayMap<>();
 	}
 
