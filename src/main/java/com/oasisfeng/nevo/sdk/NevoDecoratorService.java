@@ -12,6 +12,7 @@ import android.service.notification.NotificationListenerService;
 import android.service.notification.NotificationListenerService.RankingMap;
 import android.service.notification.StatusBarNotification;
 import android.util.Log;
+import android.util.LruCache;
 import android.widget.RemoteViews;
 
 import androidx.annotation.Keep;
@@ -20,8 +21,6 @@ import androidx.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
-import java.util.WeakHashMap;
 
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -107,17 +106,21 @@ public abstract class NevoDecoratorService {
 		XposedHelpers.setObjectField(n, "actions", actions);
 	}
 
-	private static final Map<Integer, LinkedList<Notification>> map = new WeakHashMap<>();
+	private static final LruCache<Integer, LinkedList<Notification>> map = new LruCache<Integer, LinkedList<Notification>>(100) {
+		protected int sizeOf(Integer key, LinkedList<Notification> value) {
+			return value != null ? value.size() : 0;
+		}
+	};
 
 	protected static void cache(final int id, final Notification n) {
-		Log.d(TAG, "cache id " + id);
+		if (BuildConfig.DEBUG) Log.d(TAG, "cache id " + id);
 		LinkedList<Notification> queue = map.get(id);
 		if (queue == null) {
 			queue = new LinkedList<>();
 			map.put(id, queue);
 		}
 		queue.add(n);
-		Log.d(TAG, "cache queue " + queue);
+		if (BuildConfig.DEBUG) Log.d(TAG, "cache queue " + queue);
 		if (queue.size() > MAX_NUM_ARCHIVED) queue.remove();
 	}
 
@@ -132,32 +135,8 @@ public abstract class NevoDecoratorService {
 	}
 
 	protected static boolean hasArchivedNotifications(int key) {
-		return map.containsKey(key);
+		return map.get(key) != null;
 	}
-
-	/**
-	 * 在应用进程中执行的通知预处理，某些功能（NotificationChannel等）在此实现。
-	 */
-	// public static class LocalDecorator {
-	// 	protected final String prefKey;
-	// 	private boolean disabled;
-
-	// 	protected LocalDecorator(String prefKey) { this.prefKey = prefKey; }
-
-	// 	public boolean isDisabled() { return disabled; }
-	// 	public void setDisabled(boolean disabled) { this.disabled = disabled; }
-	
-	// 	@Keep public void onCreate(SharedPreferences pref) {
-	// 		this.disabled = !pref.getBoolean(prefKey  + ".enabled", true);
-	// 		if (BuildConfig.DEBUG) Log.d(TAG, prefKey + ".disabled " + this.disabled);
-	// 	}
-	
-	// 	@Keep public void onDestroy() {}
-	
-	// 	@Keep public Decorating apply(NotificationManager nm, String tag, int id, Notification n) {
-	// 		return Decorating.Unprocessed;
-	// 	}
-	// }
 
 	protected final String prefKey;
 	private boolean disabled;
@@ -181,12 +160,12 @@ public abstract class NevoDecoratorService {
 	}
 
 	protected final void cancelNotification(int id) {
-		Log.d(TAG, "cancelNotification " + mNM + " " + id);
+		if (BuildConfig.DEBUG) Log.d(TAG, "cancelNotification " + mNM + " " + id);
 		if (mNM != null) mNM.cancel(null, id);
 	}
 
 	protected final void recastNotification(final int id, final Notification n) {
-		Log.d(TAG, "recastNotification " + mNM + " " + n.extras.getCharSequence(Notification.EXTRA_TITLE));
+		if (BuildConfig.DEBUG) Log.d(TAG, "recastNotification " + mNM + " " + n.extras.getCharSequence(Notification.EXTRA_TITLE));
 		if (mNM != null) mNM.notify(null, id, n);
 	}
 }
