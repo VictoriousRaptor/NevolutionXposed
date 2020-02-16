@@ -19,6 +19,7 @@ package com.oasisfeng.nevo.decorators.wechat;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -287,7 +288,16 @@ public class WeChatDecorator extends NevoDecoratorService implements HookSupport
 		if (BuildConfig.DEBUG) Log.d(TAG, "apply tag " + tag + " id " + id);
 		cache(id, n);
 
-		final Bundle extras = n.extras;
+		// Log.d(TAG, "deleteIntent " + n.deleteIntent);
+		final Bundle extras = n.extras,
+			extensions = extras.getBundle("android.car.EXTENSIONS");
+		if (extensions != null) {
+			Bundle conversation = extensions.getBundle("car_conversation");
+			PendingIntent onRead = (PendingIntent)conversation.get("on_read");
+			// Log.d(TAG, "on_read " + onRead);
+			n.deleteIntent = onRead;
+		}
+		// Log.d(TAG, "deleteIntent " + n.deleteIntent);
 		CharSequence title = extras.getCharSequence(Notification.EXTRA_TITLE);
 		if (title == null || title.length() == 0) {
 			Log.e(TAG, "Title is missing: " + n);
