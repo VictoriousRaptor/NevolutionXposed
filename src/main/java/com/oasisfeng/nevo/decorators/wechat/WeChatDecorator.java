@@ -201,32 +201,71 @@ public class WeChatDecorator extends NevoDecoratorService implements HookSupport
 		});
 		// 诊断
 		try {
-			hookForDiagnose(loadPackageParam, "com.tencent.mm.sdk.platformtools.am", this::hookDispatchMessage);
+			// hookForDiagnose(loadPackageParam, "android.support.v4.app.s$c", this::hookSetLargeIcon);
+			// hookForDiagnose(loadPackageParam, "com.tencent.mm.booter.notification.c", this::hookNotificationItem);
+			// hookForDiagnose(loadPackageParam, "com.tencent.mm.sdk.platformtools.am", this::hookDispatchMessage);
 		} catch (Exception ex) { Log.d(TAG, "error in diagnose " + ex.getMessage()); }
+	}
+
+	// 抓android.support.v4.app.s$c::c(android.graphics.Bitmap) <- android.support.v4.app.NotificationCompat$Builder::setLargeIcon
+	private void hookSetLargeIcon(final XC_LoadPackage.LoadPackageParam loadPackageParam, ClassLoader loader, Class target) {
+		for (java.lang.reflect.Method method : target.getDeclaredMethods()) {
+			Class[] types = method.getParameterTypes();
+			if (types.length != 1 || !android.graphics.Bitmap.class.equals(types[0])) continue;
+			XposedBridge.hookMethod(method, new XC_MethodHook() {
+				@Override
+				protected void afterHookedMethod(MethodHookParam param) {
+					Log.d(TAG, param.method + " " + param.args[0]);
+					Object stack = XposedHelpers.getAdditionalInstanceField(param.args[0], "stack");
+					if (stack instanceof Exception) Log.d(TAG, "stack", (Exception)stack);
+				}
+			});
+			XposedBridge.hookAllConstructors(android.graphics.Bitmap.class, new XC_MethodHook() {
+				@Override
+				protected void afterHookedMethod(MethodHookParam param) {
+					XposedHelpers.setAdditionalInstanceField(param.thisObject, "stack", new Exception());
+				}
+			});
+		}
+	}
+
+	// 抓com.tencent.mm.booter.notification.c::a(NotificationItem)
+	private void hookNotificationItem(final XC_LoadPackage.LoadPackageParam loadPackageParam, ClassLoader loader, Class target) {
+		for (java.lang.reflect.Method method : target.getDeclaredMethods()) {
+			Class[] types = method.getParameterTypes();
+			if (types.length == 0/* || !android.graphics.Bitmap.class.equals(types[0])*/) continue;
+			Log.d(TAG, "method " + method);
+			XposedBridge.hookMethod(method, new XC_MethodHook() {
+				@Override
+				protected void afterHookedMethod(MethodHookParam param) {
+					for (Object arg : param.args) Log.d(TAG, param.method + " " + arg);
+				}
+			});
+		}
 	}
 
 	// 抓com.tencent.mm.sdk.platformtools.am::dispatchMessage(android.os.Message)
 	private void hookDispatchMessage(final XC_LoadPackage.LoadPackageParam loadPackageParam, ClassLoader loader, Class target) {
-			XposedHelpers.findAndHookMethod(target, "dispatchMessage", Message.class, new XC_MethodHook() {
-				@Override
-				protected void afterHookedMethod(MethodHookParam param) {
-					Message msg = (Message)param.args[0];
-					Bundle data = msg.getData();
-					// Log.d(TAG, "data " + data);
-					int msgType = data.getInt("notification.show.message.type", -1);
-					// Log.d(TAG, "msgType " + msgType);
-					if (msgType == -1) return;
-					Log.d(TAG, param.method.getName() + " " + data);
-					// for (java.lang.reflect.Field field : ni.getDeclaredFields()) {
-					// 	try {
-					// 		field.setAccessible(true);
-					// 		Log.d(TAG, "ni " + field.getName() + " " + field.getType() + " " + field.get(param.args[0]));
-					// 	} catch (IllegalAccessException ex0) {
-					// 		Log.d(TAG, "ni error " + field.getName() + " " + field.getType() + " ");
-					// 	}
-					// }
-				}
-			});
+		XposedHelpers.findAndHookMethod(target, "dispatchMessage", Message.class, new XC_MethodHook() {
+			@Override
+			protected void afterHookedMethod(MethodHookParam param) {
+				Message msg = (Message)param.args[0];
+				Bundle data = msg.getData();
+				// Log.d(TAG, "data " + data);
+				int msgType = data.getInt("notification.show.message.type", -1);
+				// Log.d(TAG, "msgType " + msgType);
+				if (msgType == -1) return;
+				Log.d(TAG, param.method.getName() + " " + data);
+				// for (java.lang.reflect.Field field : ni.getDeclaredFields()) {
+				// 	try {
+				// 		field.setAccessible(true);
+				// 		Log.d(TAG, "ni " + field.getName() + " " + field.getType() + " " + field.get(param.args[0]));
+				// 	} catch (IllegalAccessException ex0) {
+				// 		Log.d(TAG, "ni error " + field.getName() + " " + field.getType() + " ");
+				// 	}
+				// }
+			}
+		});
 	}
 
 	private MessagingBuilder mMessagingBuilder;
