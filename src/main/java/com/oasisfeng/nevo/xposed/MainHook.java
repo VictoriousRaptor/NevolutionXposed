@@ -25,6 +25,8 @@ import com.notxx.xposed.DeviceSharedPreferences;
 
 import com.oasisfeng.nevo.sdk.HookSupport;
 import com.oasisfeng.nevo.sdk.NevoDecoratorService;
+import com.oasisfeng.nevo.sdk.NevoDecoratorService.LocalDecorator;
+import com.oasisfeng.nevo.sdk.NevoDecoratorService.SystemUIDecorator;
 import com.oasisfeng.nevo.xposed.BuildConfig;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
@@ -44,6 +46,8 @@ public class MainHook implements IXposedHookLoadPackage {
 
 	private final XSharedPreferences pref = DeviceSharedPreferences.get(BuildConfig.APPLICATION_ID);
 	private final NevoDecoratorService wechat = new com.oasisfeng.nevo.decorators.wechat.WeChatDecorator();
+	private final NevoDecoratorService miui = new com.oasisfeng.nevo.decorators.MIUIDecorator();
+	private final NevoDecoratorService media = new com.oasisfeng.nevo.decorators.media.MediaDecorator();
 
 	private static void inspect(XC_LoadPackage.LoadPackageParam loadPackageParam, String className, String... methods) {
 		try {
@@ -80,7 +84,129 @@ public class MainHook implements IXposedHookLoadPackage {
 
 	@Override
 	public void handleLoadPackage(XC_LoadPackage.LoadPackageParam loadPackageParam) {
-		if (!"com.tencent.mm".equals(loadPackageParam.packageName)) return;
+		switch (loadPackageParam.packageName) {
+			case "com.android.systemui":
+			hookSystemUI(loadPackageParam);
+			break;
+			case "com.tencent.mm": // TODO
+			hookWeChat(loadPackageParam);
+		}
+		/* inspect(loadPackageParam,
+				"com.android.server.notification.NotificationManagerService",
+				"getNotificationChannel",
+				"deleteNotificationChannel",
+				"deleteNotificationChannelGroup",
+				"createNotificationChannels"); */
+	}
+
+	private void hookSystemUI(XC_LoadPackage.LoadPackageParam loadPackageParam) {
+		AtomicReference<NotificationListenerService> nlsRef = new AtomicReference<>();
+		final XC_MethodHook onNotificationPosted = new XC_MethodHook() { // 捕获通知到达
+			@Override
+			protected void beforeHookedMethod(MethodHookParam param) {
+				StatusBarNotification sbn = (StatusBarNotification)param.args[0];
+				// RankingMap rankingMap = (RankingMap)param.args[1];
+				Log.d(TAG, "onNotificationPosted");
+				onNotificationPosted(sbn);
+			}
+		}, onNotificationRemoved = new XC_MethodHook() { // 捕获通知移除
+			@Override
+			protected void beforeHookedMethod(MethodHookParam param) {
+				StatusBarNotification sbn = (StatusBarNotification)param.args[0];
+				// RankingMap rankingMap = (RankingMap)param.args[1];
+				// NotificationStats stats = (NotificationStats)param.args[2];
+				int reason = (int)param.args[3];
+				Log.d(TAG, "onNotificationRemoved");
+				onNotificationRemoved(sbn, reason);
+			}
+		}, nls = new XC_MethodHook() { // 捕获NotificationListenerService的具体实现
+			@Override
+			protected void afterHookedMethod(MethodHookParam param) {
+				// XposedBridge.log("nls constructor " + param.thisObject);
+				NotificationListenerService nls = (NotificationListenerService)param.thisObject;
+				if (nlsRef.compareAndSet(null, nls)) {
+					SystemUIDecorator.setNLS(nls);
+				}
+				try {
+					final Class<?> clazz = nls.getClass();
+					XposedBridge.log("NL clazz: " + clazz + " " + loadPackageParam.packageName);
+					Method method = XposedHelpers.findMethodExact(clazz, "onNotificationPosted", 
+							StatusBarNotification.class, RankingMap.class);
+					Log.d(TAG, "method " + method);
+					XposedBridge.hookMethod(method, onNotificationPosted);
+					method = XposedHelpers.findMethodBestMatch(clazz, "onNotificationRemoved",  StatusBarNotification.class, RankingMap.class,
+							XposedHelpers.findClass("android.service.notification.NotificationStats", loadPackageParam.classLoader), int.class);
+					Log.d(TAG, "method " + method);
+					XposedBridge.hookMethod(method, onNotificationRemoved);
+				} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("NL hook failed "); }
+			}
+		};
+		try {
+			XposedBridge.hookAllConstructors(NotificationListenerService.class, nls);
+		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("NotificationListenerService hook failed "); }
+		try {
+			final Class<?> clazz = XposedHelpers.findClass("android.app.ContextImpl", loadPackageParam.classLoader);
+			XposedBridge.log("CI clazz: " + clazz);
+			AtomicReference<Context> ref = new AtomicReference<>();
+			XposedBridge.hookAllMethods(clazz, "createAppContext", new XC_MethodHook() {
+				@Override
+				protected void afterHookedMethod(MethodHookParam param) {
+					Context context = (Context)param.getResult();
+					if (ref.compareAndSet(null, context)) {
+						XposedBridge.log("onCreate " + context);
+						onCreate(context);
+					}
+				}
+			});
+		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("ContextImpl hook failed"); }
+		try {
+			SystemUIDecorator media = this.media.getSystemUIDecorator();
+			if ((media instanceof HookSupport)) { ((HookSupport)media).hook(loadPackageParam); }
+		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log(this.media + " hook failed"); }
+		/* try {
+			HookSupport fix = new com.notxx.notification.MIUIBetaFixXposed();
+			fix.hook(loadPackageParam);
+		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("fix hook failed"); } */
+	}
+	
+	private void onCreate(Context context) {
+		NevoDecoratorService.setAppContext(context);
+
+		SystemUIDecorator miui = this.miui.getSystemUIDecorator(),
+				media = this.media.getSystemUIDecorator();
+		miui.onCreate(pref);
+		media.onCreate(pref);
+	}
+
+	private void onNotificationPosted(StatusBarNotification sbn) {
+		if (XposedHelpers.getAdditionalInstanceField(sbn, "applied") != null) {
+			Log.d(TAG, "skip " + sbn);
+			return;
+		}
+		XposedHelpers.setAdditionalInstanceField(sbn, "applied", true);
+
+		SystemUIDecorator miui = this.miui.getSystemUIDecorator(),
+				media = this.media.getSystemUIDecorator();
+		switch (sbn.getPackageName()) {
+			case "com.xiaomi.xmsf":
+			if (!miui.isDisabled()) miui.onNotificationPosted(sbn);
+			break;
+		}
+		if (!media.isDisabled()) media.onNotificationPosted(sbn);
+	}
+
+	private void onNotificationRemoved(StatusBarNotification sbn, int reason) {
+		SystemUIDecorator miui = this.miui.getSystemUIDecorator(),
+				media = this.media.getSystemUIDecorator();
+		switch (sbn.getPackageName()) {
+			case "com.xiaomi.xmsf":
+			if (!miui.isDisabled()) miui.onNotificationRemoved(sbn, reason);
+			break;
+		}
+		if (!media.isDisabled()) media.onNotificationRemoved(sbn, reason);
+	}
+
+	private void hookWeChat(XC_LoadPackage.LoadPackageParam loadPackageParam) {
 		if (!"com.tencent.mm".equals(loadPackageParam.processName)) return;
 		try {
 			final Class<?> clazz = XposedHelpers.findClass("android.app.NotificationManager", loadPackageParam.classLoader);
@@ -98,7 +224,7 @@ public class MainHook implements IXposedHookLoadPackage {
 					applyLocally(nm, tag, id, n);
 				}
 			});
-		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("NotificationManager hook failed"); }
+		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log(this.wechat + " NotificationManager hook failed"); }
 		try {
 			AtomicReference<Context> ref = new AtomicReference<>();
 			XposedHelpers.findAndHookMethod(ContextWrapper.class, "attachBaseContext", Context.class, new XC_MethodHook() {
@@ -107,12 +233,13 @@ public class MainHook implements IXposedHookLoadPackage {
 					Context context = (Context)param.args[0];
 					if (ref.compareAndSet(null, context)) {
 						NevoDecoratorService.setAppContext(context);
+						LocalDecorator wechat = MainHook.this.wechat.getLocalDecorator("com.tencent.mm"); // TODO
 						wechat.onCreate(pref);
 						if (!wechat.isDisabled() && (wechat instanceof HookSupport)) ((HookSupport)wechat).hook(loadPackageParam); // TODO 没法用onCreate(XSharedPreferences)实现动态配置，需要搞定
 					}
 				}
 			});
-		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("ContextWrapper hook failed"); }
+		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log(this.wechat + " ContextWrapper hook failed"); }
 		/* inspect(loadPackageParam,
 				"com.android.server.notification.NotificationManagerService",
 				"getNotificationChannel",
@@ -128,7 +255,8 @@ public class MainHook implements IXposedHookLoadPackage {
 			return;
 		}
 		XposedHelpers.setAdditionalInstanceField(n, "pre-applied", true);
-		NevoDecoratorService.setNM(nm);
+		LocalDecorator.setNM(nm);
+		LocalDecorator wechat = this.wechat.getLocalDecorator("com.tencent.mm"); // TODO
 		if (!wechat.isDisabled()) wechat.apply(nm, tag, id, n);
 	}
 }

@@ -88,7 +88,7 @@ import com.oasisfeng.nevo.xposed.R;
  * 
  */
 @Decorator(title = R.string.decorator_wechat_title, description = R.string.decorator_wechat_description, priority = -20)
-public class WeChatDecorator extends NevoDecoratorService implements HookSupport {
+public class WeChatDecorator extends NevoDecoratorService {
 	
 	public static final String WECHAT_PACKAGE = "com.tencent.mm";
 	private static final long GROUP_CHAT_SORT_KEY_SHIFT = 24 * 60 * 60 * 1000L;			// Sort group chat like one day older message.
@@ -160,340 +160,344 @@ public class WeChatDecorator extends NevoDecoratorService implements HookSupport
 		});
 	}
 
-	private String mPath;
-	private long mCreated, mClosed;
-
-	/**
-	 * 
-	 * Created by Oasis on 2018-11-30.
-	 * Modify by Kr328 on 2019-1-5
-	 * Modify by notXX on 2019-8-5
-	 * 
-	 * @param loadPackageParam
-	 */
-	@Override public void hook(XC_LoadPackage.LoadPackageParam loadPackageParam) {
-		// 图片预览
-		Class<?> clazz = java.io.FileOutputStream.class;
-		XposedHelpers.findAndHookConstructor(clazz, String.class, boolean.class, new XC_MethodHook() {
-			@Override
-			protected void beforeHookedMethod(MethodHookParam param) {
-				String path = (String)param.args[0];
-				if (path == null || !path.contains("/image2/")) return;
-				long created = now();
-				XposedHelpers.setAdditionalInstanceField(param.thisObject, "path", path);
-				XposedHelpers.setAdditionalInstanceField(param.thisObject, "created", created);
-				if (BuildConfig.DEBUG) Log.d(TAG, created + " " + path);
-			}
-		});
-		XposedHelpers.findAndHookMethod(clazz, "close", new XC_MethodHook() {
-			@Override
-			protected void afterHookedMethod(MethodHookParam param) {
-				String path = (String)XposedHelpers.getAdditionalInstanceField(param.thisObject, "path");
-				if (path == null) return;
-				long created = (Long)XposedHelpers.getAdditionalInstanceField(param.thisObject, "created");
-				long closed = now();
-				if (BuildConfig.DEBUG) Log.d(TAG, created + "=>" + closed + " " + path);
-				synchronized (this) {
-					mPath = path;
-					mCreated = created;
-					mClosed = closed;
-				}
-			}
-		});
-		// 诊断
-		try {
-			// hookForDiagnose(loadPackageParam, "android.support.v4.app.s$c", this::hookSetLargeIcon);
-			// hookForDiagnose(loadPackageParam, "com.tencent.mm.booter.notification.c", this::hookNotificationItem);
-			// hookForDiagnose(loadPackageParam, "com.tencent.mm.sdk.platformtools.am", this::hookDispatchMessage);
-		} catch (Exception ex) { Log.d(TAG, "error in diagnose " + ex.getMessage()); }
+	@Override public LocalDecorator createLocalDecorator(String packageName) {
+		return new Local(this.prefKey);
 	}
 
-	// 抓android.support.v4.app.s$c::c(android.graphics.Bitmap) <- android.support.v4.app.NotificationCompat$Builder::setLargeIcon
-	private void hookSetLargeIcon(final XC_LoadPackage.LoadPackageParam loadPackageParam, ClassLoader loader, Class target) {
-		for (java.lang.reflect.Method method : target.getDeclaredMethods()) {
-			Class[] types = method.getParameterTypes();
-			if (types.length != 1 || !android.graphics.Bitmap.class.equals(types[0])) continue;
-			XposedBridge.hookMethod(method, new XC_MethodHook() {
-				@Override
-				protected void afterHookedMethod(MethodHookParam param) {
-					Log.d(TAG, param.method + " " + param.args[0]);
-					Object stack = XposedHelpers.getAdditionalInstanceField(param.args[0], "stack");
-					if (stack instanceof Exception) Log.d(TAG, "stack", (Exception)stack);
-				}
-			});
-			XposedBridge.hookAllConstructors(android.graphics.Bitmap.class, new XC_MethodHook() {
-				@Override
-				protected void afterHookedMethod(MethodHookParam param) {
-					XposedHelpers.setAdditionalInstanceField(param.thisObject, "stack", new Exception());
-				}
-			});
+	public static class Local extends LocalDecorator implements HookSupport {
+		public Local(String prefKey) {
+			super(prefKey);
 		}
-	}
-
-	// 抓com.tencent.mm.booter.notification.c::a(NotificationItem)
-	private void hookNotificationItem(final XC_LoadPackage.LoadPackageParam loadPackageParam, ClassLoader loader, Class target) {
-		for (java.lang.reflect.Method method : target.getDeclaredMethods()) {
-			Class[] types = method.getParameterTypes();
-			if (types.length == 0/* || !android.graphics.Bitmap.class.equals(types[0])*/) continue;
-			Log.d(TAG, "method " + method);
-			XposedBridge.hookMethod(method, new XC_MethodHook() {
-				@Override
-				protected void afterHookedMethod(MethodHookParam param) {
-					for (Object arg : param.args) Log.d(TAG, param.method + " " + arg);
-				}
-			});
-		}
-	}
-
-	// 抓com.tencent.mm.sdk.platformtools.am::dispatchMessage(android.os.Message)
-	private void hookDispatchMessage(final XC_LoadPackage.LoadPackageParam loadPackageParam, ClassLoader loader, Class target) {
-		XposedHelpers.findAndHookMethod(target, "dispatchMessage", Message.class, new XC_MethodHook() {
-			@Override
-			protected void afterHookedMethod(MethodHookParam param) {
-				Message msg = (Message)param.args[0];
-				Bundle data = msg.getData();
-				// Log.d(TAG, "data " + data);
-				int msgType = data.getInt("notification.show.message.type", -1);
-				// Log.d(TAG, "msgType " + msgType);
-				if (msgType == -1) return;
-				Log.d(TAG, param.method.getName() + " " + data);
-				// for (java.lang.reflect.Field field : ni.getDeclaredFields()) {
-				// 	try {
-				// 		field.setAccessible(true);
-				// 		Log.d(TAG, "ni " + field.getName() + " " + field.getType() + " " + field.get(param.args[0]));
-				// 	} catch (IllegalAccessException ex0) {
-				// 		Log.d(TAG, "ni error " + field.getName() + " " + field.getType() + " ");
-				// 	}
-				// }
-			}
-		});
-	}
-
-	private MessagingBuilder mMessagingBuilder;
-	private String channelGroupMessage, channelMessage, channelMisc;
-	private boolean mWeChatTargetingO;
-	private final ConversationManager mConversationManager = new ConversationManager();
-
-	@Override public void onCreate(SharedPreferences pref) {
-		super.onCreate(pref);
-
-		mMessagingBuilder = new MessagingBuilder(getAppContext(), getPackageContext(), this::modifyNotification);		// Must be called after loadPreferences().
-		channelGroupMessage = getString(R.string.channel_group_message);
-		channelMessage = getString(R.string.channel_message);
-		channelMisc = getString(R.string.channel_misc);
-	}
-
-	@Override public Decorating apply(NotificationManager nm, String tag, int id, Notification n) {
-		mWeChatTargetingO = isWeChatTargeting26OrAbove();
-		if (BuildConfig.DEBUG) Log.d(TAG, "apply tag " + tag + " id " + id);
-		cache(id, n);
-
-		// Log.d(TAG, "deleteIntent " + n.deleteIntent);
-		final Bundle extras = n.extras,
-			extensions = extras.getBundle("android.car.EXTENSIONS");
-		if (extensions != null) {
-			Bundle conversation = extensions.getBundle("car_conversation");
-			PendingIntent onRead = (PendingIntent)conversation.get("on_read");
-			// Log.d(TAG, "on_read " + onRead);
-			n.deleteIntent = onRead;
-		}
-		// Log.d(TAG, "deleteIntent " + n.deleteIntent);
-		CharSequence title = extras.getCharSequence(Notification.EXTRA_TITLE);
-		if (title == null || title.length() == 0) {
-			Log.e(TAG, "Title is missing: " + n);
-			return Decorating.Unprocessed;
-		}
-		if (title != (title = EmojiTranslator.translate(title))) extras.putCharSequence(Notification.EXTRA_TITLE, title);
-		n.color = PRIMARY_COLOR;        // Tint the small icon
-
-		String channel_id = SDK_INT >= O ? n.getChannelId() : null;
-		if (CHANNEL_MISC.equals(channel_id)) return Decorating.Unprocessed;	// Misc. notifications on Android 8+.
 		
-		final CharSequence text = extras.getCharSequence(Notification.EXTRA_TEXT);
-		String content = text != null ? text.toString() : null;
-		// [2条]...
-		if (content != null && content.startsWith("[")) {
-			if (BuildConfig.DEBUG) Log.d(TAG, "content " + content);
-			final int end = content.indexOf(']');
-			if (content.charAt(end - 1) == '条') {
-				n.number = Integer.parseInt(content.substring(1, end - 1));
-				if (BuildConfig.DEBUG) Log.d(TAG, "n.number " + n.number);
-				content = content.substring(end + 1);
+		private String mPath;
+		private long mCreated, mClosed;
+	
+		/**
+		 * 
+		 * Created by Oasis on 2018-11-30.
+		 * Modify by Kr328 on 2019-1-5
+		 * Modify by notXX on 2019-8-5
+		 * 
+		 * @param loadPackageParam
+		 */
+		@Override public void hook(XC_LoadPackage.LoadPackageParam loadPackageParam) {
+			// 图片预览
+			Class<?> clazz = java.io.FileOutputStream.class;
+			XposedHelpers.findAndHookConstructor(clazz, String.class, boolean.class, new XC_MethodHook() {
+				@Override
+				protected void beforeHookedMethod(MethodHookParam param) {
+					String path = (String)param.args[0];
+					if (path == null || !path.contains("/image2/")) return;
+					long created = now();
+					XposedHelpers.setAdditionalInstanceField(param.thisObject, "path", path);
+					XposedHelpers.setAdditionalInstanceField(param.thisObject, "created", created);
+					if (BuildConfig.DEBUG) Log.d(TAG, created + " " + path);
+				}
+			});
+			XposedHelpers.findAndHookMethod(clazz, "close", new XC_MethodHook() {
+				@Override
+				protected void afterHookedMethod(MethodHookParam param) {
+					String path = (String)XposedHelpers.getAdditionalInstanceField(param.thisObject, "path");
+					if (path == null) return;
+					long created = (Long)XposedHelpers.getAdditionalInstanceField(param.thisObject, "created");
+					long closed = now();
+					if (BuildConfig.DEBUG) Log.d(TAG, created + "=>" + closed + " " + path);
+					synchronized (this) {
+						mPath = path;
+						mCreated = created;
+						mClosed = closed;
+					}
+				}
+			});
+		}
+
+		// 抓android.support.v4.app.s$c::c(android.graphics.Bitmap) <- android.support.v4.app.NotificationCompat$Builder::setLargeIcon
+		private void hookSetLargeIcon(final XC_LoadPackage.LoadPackageParam loadPackageParam, ClassLoader loader, Class target) {
+			for (java.lang.reflect.Method method : target.getDeclaredMethods()) {
+				Class[] types = method.getParameterTypes();
+				if (types.length != 1 || !android.graphics.Bitmap.class.equals(types[0])) continue;
+				XposedBridge.hookMethod(method, new XC_MethodHook() {
+					@Override
+					protected void afterHookedMethod(MethodHookParam param) {
+						Log.d(TAG, param.method + " " + param.args[0]);
+						Object stack = XposedHelpers.getAdditionalInstanceField(param.args[0], "stack");
+						if (stack instanceof Exception) Log.d(TAG, "stack", (Exception)stack);
+					}
+				});
+				XposedBridge.hookAllConstructors(android.graphics.Bitmap.class, new XC_MethodHook() {
+					@Override
+					protected void afterHookedMethod(MethodHookParam param) {
+						XposedHelpers.setAdditionalInstanceField(param.thisObject, "stack", new Exception());
+					}
+				});
 			}
 		}
-		// 撤回...
-		int type = Conversation.TYPE_UNKNOWN;
-		String recaller = null;
-		boolean is_recall = false;
-		if (content != null && content.contains("撤回")) {
-			if (BuildConfig.DEBUG) Log.d(TAG, "content " + content);
-			if (CHANNEL_MISC.equals(channel_id)) {	// Misc. notifications on Android 8+.
+
+		// 抓com.tencent.mm.booter.notification.c::a(NotificationItem)
+		private void hookNotificationItem(final XC_LoadPackage.LoadPackageParam loadPackageParam, ClassLoader loader, Class target) {
+			for (java.lang.reflect.Method method : target.getDeclaredMethods()) {
+				Class[] types = method.getParameterTypes();
+				if (types.length == 0/* || !android.graphics.Bitmap.class.equals(types[0])*/) continue;
+				Log.d(TAG, "method " + method);
+				XposedBridge.hookMethod(method, new XC_MethodHook() {
+					@Override
+					protected void afterHookedMethod(MethodHookParam param) {
+						for (Object arg : param.args) Log.d(TAG, param.method + " " + arg);
+					}
+				});
+			}
+		}
+
+		// 抓com.tencent.mm.sdk.platformtools.am::dispatchMessage(android.os.Message)
+		private void hookDispatchMessage(final XC_LoadPackage.LoadPackageParam loadPackageParam, ClassLoader loader, Class target) {
+			XposedHelpers.findAndHookMethod(target, "dispatchMessage", Message.class, new XC_MethodHook() {
+				@Override
+				protected void afterHookedMethod(MethodHookParam param) {
+					Message msg = (Message)param.args[0];
+					Bundle data = msg.getData();
+					// Log.d(TAG, "data " + data);
+					int msgType = data.getInt("notification.show.message.type", -1);
+					// Log.d(TAG, "msgType " + msgType);
+					if (msgType == -1) return;
+					Log.d(TAG, param.method.getName() + " " + data);
+					// for (java.lang.reflect.Field field : ni.getDeclaredFields()) {
+					// 	try {
+					// 		field.setAccessible(true);
+					// 		Log.d(TAG, "ni " + field.getName() + " " + field.getType() + " " + field.get(param.args[0]));
+					// 	} catch (IllegalAccessException ex0) {
+					// 		Log.d(TAG, "ni error " + field.getName() + " " + field.getType() + " ");
+					// 	}
+					// }
+				}
+			});
+		}
+
+		private MessagingBuilder mMessagingBuilder;
+		private String channelGroupMessage, channelMessage, channelMisc;
+		private boolean mWeChatTargetingO;
+		private final ConversationManager mConversationManager = new ConversationManager();
+
+		@Override public void onCreate(SharedPreferences pref) {
+			super.onCreate(pref);
+
+			mMessagingBuilder = new MessagingBuilder(getAppContext(), getPackageContext(), this::modifyNotification);		// Must be called after loadPreferences().
+			channelGroupMessage = getString(R.string.channel_group_message);
+			channelMessage = getString(R.string.channel_message);
+			channelMisc = getString(R.string.channel_misc);
+		}
+
+		@Override public Decorating apply(NotificationManager nm, String tag, int id, Notification n) {
+			mWeChatTargetingO = isWeChatTargeting26OrAbove();
+			if (BuildConfig.DEBUG) Log.d(TAG, "apply tag " + tag + " id " + id);
+			cache(id, n);
+
+			// Log.d(TAG, "deleteIntent " + n.deleteIntent);
+			final Bundle extras = n.extras,
+				extensions = extras.getBundle("android.car.EXTENSIONS");
+			if (extensions != null) {
+				Bundle conversation = extensions.getBundle("car_conversation");
+				PendingIntent onRead = (PendingIntent)conversation.get("on_read");
+				// Log.d(TAG, "on_read " + onRead);
+				n.deleteIntent = onRead;
+			}
+			// Log.d(TAG, "deleteIntent " + n.deleteIntent);
+			CharSequence title = extras.getCharSequence(Notification.EXTRA_TITLE);
+			if (title == null || title.length() == 0) {
+				Log.e(TAG, "Title is missing: " + n);
 				return Decorating.Unprocessed;
-			} else if (n.tickerText == null) {		// Legacy misc. notifications.
-				if (SDK_INT >= O && channel_id == null) setChannelId(n, CHANNEL_MISC);
-				Matcher matcher = pattern.matcher(content);
-				if (BuildConfig.DEBUG) Log.d(TAG, "matcher " + matcher.matches());
-				if (matcher.matches()) {
-					// 撤回
-					// Log.d(TAG, matcher.group(0) + ", " + matcher.group(1) + ", " + matcher.group(2) + ", " + matcher.group(3));
-					is_recall = true;
-					recaller = matcher.group("recaller");
-					extras.putBoolean(EXTRA_RECALL, true);
-					extras.putString(EXTRA_RECALLER, recaller);
-					if (BuildConfig.DEBUG) Log.d(TAG, "recaller " + recaller);
-				} else {
-					Log.d(TAG, "Skip further process for non-conversation notification: " + title);    // E.g. web login confirmation notification.
+			}
+			if (title != (title = EmojiTranslator.translate(title))) extras.putCharSequence(Notification.EXTRA_TITLE, title);
+			n.color = PRIMARY_COLOR;        // Tint the small icon
+
+			String channel_id = SDK_INT >= O ? n.getChannelId() : null;
+			if (CHANNEL_MISC.equals(channel_id)) return Decorating.Unprocessed;	// Misc. notifications on Android 8+.
+			
+			final CharSequence text = extras.getCharSequence(Notification.EXTRA_TEXT);
+			String content = text != null ? text.toString() : null;
+			// [2条]...
+			if (content != null && content.startsWith("[")) {
+				if (BuildConfig.DEBUG) Log.d(TAG, "content " + content);
+				final int end = content.indexOf(']');
+				if (content.charAt(end - 1) == '条') {
+					n.number = Integer.parseInt(content.substring(1, end - 1));
+					if (BuildConfig.DEBUG) Log.d(TAG, "n.number " + n.number);
+					content = content.substring(end + 1);
+				}
+			}
+			// 撤回...
+			int type = Conversation.TYPE_UNKNOWN;
+			String recaller = null;
+			boolean is_recall = false;
+			if (content != null && content.contains("撤回")) {
+				if (BuildConfig.DEBUG) Log.d(TAG, "content " + content);
+				if (CHANNEL_MISC.equals(channel_id)) {	// Misc. notifications on Android 8+.
 					return Decorating.Unprocessed;
+				} else if (n.tickerText == null) {		// Legacy misc. notifications.
+					if (SDK_INT >= O && channel_id == null) setChannelId(n, CHANNEL_MISC);
+					Matcher matcher = pattern.matcher(content);
+					if (BuildConfig.DEBUG) Log.d(TAG, "matcher " + matcher.matches());
+					if (matcher.matches()) {
+						// 撤回
+						// Log.d(TAG, matcher.group(0) + ", " + matcher.group(1) + ", " + matcher.group(2) + ", " + matcher.group(3));
+						is_recall = true;
+						recaller = matcher.group("recaller");
+						extras.putBoolean(EXTRA_RECALL, true);
+						extras.putString(EXTRA_RECALLER, recaller);
+						if (BuildConfig.DEBUG) Log.d(TAG, "recaller " + recaller);
+					} else {
+						Log.d(TAG, "Skip further process for non-conversation notification: " + title);    // E.g. web login confirmation notification.
+						return Decorating.Unprocessed;
+					}
+				}
+				if (is_recall) type = (recaller == null) ? Conversation.TYPE_DM_RECALL : Conversation.TYPE_GC_RECALL;
+			}
+			if (content == null || content.isEmpty()) return Decorating.Unprocessed;
+
+			extras.putCharSequence(Notification.EXTRA_TEXT, content);
+
+			int sep = content.indexOf(WeChatMessage.SENDER_MESSAGE_SEPARATOR);
+			if (sep > 0) {
+				String person = content.substring(0, sep);
+				String msg = content.substring(sep + WeChatMessage.SENDER_MESSAGE_SEPARATOR.length());
+				if (BuildConfig.DEBUG) Log.d(TAG, person + "|" + msg);
+				if ("[图片]".equals(msg) && mPath != null && mClosed - now() < 1000) {
+					synchronized (this) {
+						if (BuildConfig.DEBUG) Log.d(TAG, "putString " + mPath);
+						extras.putString(EXTRA_PICTURE_PATH, mPath); // 保存图片地址
+						mPath = null;
+					}
 				}
 			}
-			if (is_recall) type = (recaller == null) ? Conversation.TYPE_DM_RECALL : Conversation.TYPE_GC_RECALL;
-		}
-		if (content == null || content.isEmpty()) return Decorating.Unprocessed;
 
-		extras.putCharSequence(Notification.EXTRA_TEXT, content);
-
-		int sep = content.indexOf(WeChatMessage.SENDER_MESSAGE_SEPARATOR);
-		if (sep > 0) {
-			String person = content.substring(0, sep);
-			String msg = content.substring(sep + WeChatMessage.SENDER_MESSAGE_SEPARATOR.length());
-			if (BuildConfig.DEBUG) Log.d(TAG, person + "|" + msg);
-			if ("[图片]".equals(msg) && mPath != null && mClosed - now() < 1000) {
-				synchronized (this) {
-					if (BuildConfig.DEBUG) Log.d(TAG, "putString " + mPath);
-					extras.putString(EXTRA_PICTURE_PATH, mPath); // 保存图片地址
-					mPath = null;
+			if (type == Conversation.TYPE_UNKNOWN) type = WeChatMessage.guessConversationType(content, n.tickerText.toString().trim(), title);
+			final boolean is_group_chat = Conversation.isGroupChat(type);
+			if (SDK_INT >= O) {
+				if (extras.containsKey(KEY_SILENT_REVIVAL)) {
+					setGroup(n, "nevo.group.auto");	// Special group name to let Nevolution auto-group it as if not yet grouped. (To be standardized in SDK)
+					setGroupAlertBehavior(n, Notification.GROUP_ALERT_SUMMARY);		// This trick makes notification silent
 				}
+				if (is_group_chat && ! CHANNEL_DND.equals(channel_id)) setChannelId(n, CHANNEL_GROUP_CONVERSATION);
+				else if (channel_id == null) setChannelId(n, CHANNEL_MESSAGE);		// WeChat versions targeting O+ have its own channel for message
+			}
+
+			// WeChat previously uses dynamic counter starting from 4097 as notification ID, which is reused after cancelled by WeChat itself,
+			//   causing conversation duplicate or overwritten notifications.
+			final Conversation conversation = mConversationManager.getConversation(id);
+
+			final Icon icon = n.getLargeIcon();
+			conversation.icon = icon != null ? IconCompat.createFromIcon(getAppContext(), icon) : null;
+			conversation.title = title;
+			conversation.summary = content;
+			conversation.ticker = n.tickerText;
+			conversation.timestamp = n.when;
+			if (is_recall)
+				conversation.setType((recaller == null) ? Conversation.TYPE_DM_RECALL : Conversation.TYPE_GC_RECALL);
+			else if (conversation.getType() == Conversation.TYPE_UNKNOWN)
+				conversation.setType(WeChatMessage.guessConversationType(conversation));
+
+			extras.putBoolean(Notification.EXTRA_SHOW_WHEN, true);
+			// if (mPreferences.getBoolean(mPrefKeyWear, false)) n.flags &= ~ Notification.FLAG_LOCAL_ONLY; // TODO
+			setSortKey(n, String.valueOf(Long.MAX_VALUE - n.when + (is_group_chat ? GROUP_CHAT_SORT_KEY_SHIFT : 0))); // Place group chat below other messages
+
+			MessagingStyle messaging = mMessagingBuilder.buildFromExtender(conversation, id, n, title, getArchivedNotifications(id)); // build message from android auto
+			if (messaging == null)	// EXTRA_TEXT will be written in buildFromArchive()
+				messaging = mMessagingBuilder.buildFromArchive(conversation, n, title, getArchivedNotifications(id));
+			if (messaging == null) return Decorating.Unprocessed;
+			final List<MessagingStyle.Message> messages = messaging.getMessages();
+			if (messages.isEmpty()) return Decorating.Unprocessed;
+
+			if (is_group_chat) messaging.setGroupConversation(true).setConversationTitle(title);
+			MessagingBuilder.flatIntoExtras(messaging, extras);
+			extras.putString(Notification.EXTRA_TEMPLATE, TEMPLATE_MESSAGING);
+
+			if (SDK_INT >= N && extras.getCharSequenceArray(Notification.EXTRA_REMOTE_INPUT_HISTORY) != null)
+				n.flags |= Notification.FLAG_ONLY_ALERT_ONCE;		// No more alert for direct-replied notification.
+
+			// 维护NotificationChannel
+			channel_id = n.getChannelId();
+			if (channel_id != null) { // 确保NotificationChannel存在
+				NotificationChannel channel = nm.getNotificationChannel(channel_id);
+				if (BuildConfig.DEBUG) Log.d(TAG, channel_id + " " + channel);
+				if (channel != null) return Decorating.Processed;
+				switch (channel_id) {
+					case CHANNEL_GROUP_CONVERSATION:
+					channel = makeChannel(CHANNEL_GROUP_CONVERSATION, channelGroupMessage, false);
+					break;
+					case CHANNEL_MESSAGE:
+					channel = migrate(nm, OLD_CHANNEL_MESSAGE,	CHANNEL_MESSAGE,	channelMessage, false);
+					break;
+					case CHANNEL_MISC:
+					channel = migrate(nm, OLD_CHANNEL_MISC,		CHANNEL_MISC,		channelMisc, true);
+					break;
+				}
+				if (BuildConfig.DEBUG) Log.d(TAG, channel_id + " " + channel);
+				nm.createNotificationChannel(channel);
+				channel = nm.getNotificationChannel(channel_id);
+				if (BuildConfig.DEBUG) Log.d(TAG, channel_id + " " + channel);
+			}
+
+			return Decorating.Processed;
+		}
+
+		private void reviveNotificationAfterChannelDeletion(final int id) {
+			Log.d(TAG, ("Revive silently: ") + id);
+			modifyNotification(id, n -> {
+				n.extras.putBoolean(KEY_SILENT_REVIVAL, true);
+			});
+		}
+
+		@RequiresApi(O) private NotificationChannel migrate(NotificationManager nm, final String old_id, final String new_id, final String new_name, final boolean silent) {
+			final NotificationChannel channel_message = nm.getNotificationChannel(old_id);
+			nm.deleteNotificationChannel(old_id);
+			if (channel_message != null) return cloneChannel(channel_message, new_id, new_name);
+			else return makeChannel(new_id, new_name, silent);
+		}
+
+		@RequiresApi(O) private NotificationChannel makeChannel(final String channel_id, final String name, final boolean silent) {
+			final NotificationChannel channel = new NotificationChannel(channel_id, name, NotificationManager.IMPORTANCE_HIGH/* Allow heads-up (by default) */);
+			if (silent) channel.setSound(null, null);
+			else channel.setSound(getDefaultSound(), new AudioAttributes.Builder().setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+					.setUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_INSTANT).build());
+			channel.enableLights(true);
+			channel.setLightColor(LIGHT_COLOR);
+			return channel;
+		}
+
+		@RequiresApi(O) private NotificationChannel cloneChannel(final NotificationChannel channel, final String id, final String new_name) {
+			final NotificationChannel clone = new NotificationChannel(id, new_name, channel.getImportance());
+			clone.setGroup(channel.getGroup());
+			clone.setDescription(channel.getDescription());
+			clone.setLockscreenVisibility(channel.getLockscreenVisibility());
+			clone.setSound(Optional.ofNullable(channel.getSound()).orElse(getDefaultSound()), channel.getAudioAttributes());
+			clone.setBypassDnd(channel.canBypassDnd());
+			clone.setLightColor(channel.getLightColor());
+			clone.setShowBadge(channel.canShowBadge());
+			clone.setVibrationPattern(channel.getVibrationPattern());
+			return clone;
+		}
+
+		@Nullable private Uri getDefaultSound() {	// Before targeting O, WeChat actually plays sound by itself (not via Notification).
+			return mWeChatTargetingO ? Settings.System.DEFAULT_NOTIFICATION_URI : null;
+		}
+
+		private boolean isWeChatTargeting26OrAbove() {
+			try {
+				return getPackageManager().getApplicationInfo(WECHAT_PACKAGE, PackageManager.GET_UNINSTALLED_PACKAGES).targetSdkVersion >= O;
+			} catch (final PackageManager.NameNotFoundException e) {
+				return false;
 			}
 		}
 
-		if (type == Conversation.TYPE_UNKNOWN) type = WeChatMessage.guessConversationType(content, n.tickerText.toString().trim(), title);
-		final boolean is_group_chat = Conversation.isGroupChat(type);
-		if (SDK_INT >= O) {
-			if (extras.containsKey(KEY_SILENT_REVIVAL)) {
-				setGroup(n, "nevo.group.auto");	// Special group name to let Nevolution auto-group it as if not yet grouped. (To be standardized in SDK)
-				setGroupAlertBehavior(n, Notification.GROUP_ALERT_SUMMARY);		// This trick makes notification silent
+		private void modifyNotification(final int id, final ModifyNotification... modifies) {
+			if (hasArchivedNotifications(id)) {
+				Notification n = getArchivedNotification(id);
+				for (ModifyNotification modify : modifies) modify.modify(n);
+				Log.d(TAG, "recast " + id + " " + n.extras.getCharSequence(Notification.EXTRA_TITLE));
+				recastNotification(id, n);
+			} else {
+				Log.d(TAG, "can not recast " + id + ", so cancel it");
+				cancelNotification(id);
 			}
-			if (is_group_chat && ! CHANNEL_DND.equals(channel_id)) setChannelId(n, CHANNEL_GROUP_CONVERSATION);
-			else if (channel_id == null) setChannelId(n, CHANNEL_MESSAGE);		// WeChat versions targeting O+ have its own channel for message
-		}
-
-		// WeChat previously uses dynamic counter starting from 4097 as notification ID, which is reused after cancelled by WeChat itself,
-		//   causing conversation duplicate or overwritten notifications.
-		final Conversation conversation = mConversationManager.getConversation(id);
-
-		final Icon icon = n.getLargeIcon();
-		conversation.icon = icon != null ? IconCompat.createFromIcon(getAppContext(), icon) : null;
-		conversation.title = title;
-		conversation.summary = content;
-		conversation.ticker = n.tickerText;
-		conversation.timestamp = n.when;
-		if (is_recall)
-			conversation.setType((recaller == null) ? Conversation.TYPE_DM_RECALL : Conversation.TYPE_GC_RECALL);
-		else if (conversation.getType() == Conversation.TYPE_UNKNOWN)
-			conversation.setType(WeChatMessage.guessConversationType(conversation));
-
-		extras.putBoolean(Notification.EXTRA_SHOW_WHEN, true);
-		// if (mPreferences.getBoolean(mPrefKeyWear, false)) n.flags &= ~ Notification.FLAG_LOCAL_ONLY; // TODO
-		setSortKey(n, String.valueOf(Long.MAX_VALUE - n.when + (is_group_chat ? GROUP_CHAT_SORT_KEY_SHIFT : 0))); // Place group chat below other messages
-
-		MessagingStyle messaging = mMessagingBuilder.buildFromExtender(conversation, id, n, title, getArchivedNotifications(id)); // build message from android auto
-		if (messaging == null)	// EXTRA_TEXT will be written in buildFromArchive()
-			messaging = mMessagingBuilder.buildFromArchive(conversation, n, title, getArchivedNotifications(id));
-		if (messaging == null) return Decorating.Unprocessed;
-		final List<MessagingStyle.Message> messages = messaging.getMessages();
-		if (messages.isEmpty()) return Decorating.Unprocessed;
-
-		if (is_group_chat) messaging.setGroupConversation(true).setConversationTitle(title);
-		MessagingBuilder.flatIntoExtras(messaging, extras);
-		extras.putString(Notification.EXTRA_TEMPLATE, TEMPLATE_MESSAGING);
-
-		if (SDK_INT >= N && extras.getCharSequenceArray(Notification.EXTRA_REMOTE_INPUT_HISTORY) != null)
-			n.flags |= Notification.FLAG_ONLY_ALERT_ONCE;		// No more alert for direct-replied notification.
-
-		// 维护NotificationChannel
-		channel_id = n.getChannelId();
-		if (channel_id != null) { // 确保NotificationChannel存在
-			NotificationChannel channel = nm.getNotificationChannel(channel_id);
-			if (BuildConfig.DEBUG) Log.d(TAG, channel_id + " " + channel);
-			if (channel != null) return Decorating.Processed;
-			switch (channel_id) {
-				case CHANNEL_GROUP_CONVERSATION:
-				channel = makeChannel(CHANNEL_GROUP_CONVERSATION, channelGroupMessage, false);
-				break;
-				case CHANNEL_MESSAGE:
-				channel = migrate(nm, OLD_CHANNEL_MESSAGE,	CHANNEL_MESSAGE,	channelMessage, false);
-				break;
-				case CHANNEL_MISC:
-				channel = migrate(nm, OLD_CHANNEL_MISC,		CHANNEL_MISC,		channelMisc, true);
-				break;
-			}
-			if (BuildConfig.DEBUG) Log.d(TAG, channel_id + " " + channel);
-			nm.createNotificationChannel(channel);
-			channel = nm.getNotificationChannel(channel_id);
-			if (BuildConfig.DEBUG) Log.d(TAG, channel_id + " " + channel);
-		}
-
-		return Decorating.Processed;
-	}
-
-	private void reviveNotificationAfterChannelDeletion(final int id) {
-		Log.d(TAG, ("Revive silently: ") + id);
-		modifyNotification(id, n -> {
-			n.extras.putBoolean(KEY_SILENT_REVIVAL, true);
-		});
-	}
-
-	@RequiresApi(O) private NotificationChannel migrate(NotificationManager nm, final String old_id, final String new_id, final String new_name, final boolean silent) {
-		final NotificationChannel channel_message = nm.getNotificationChannel(old_id);
-		nm.deleteNotificationChannel(old_id);
-		if (channel_message != null) return cloneChannel(channel_message, new_id, new_name);
-		else return makeChannel(new_id, new_name, silent);
-	}
-
-	@RequiresApi(O) private NotificationChannel makeChannel(final String channel_id, final String name, final boolean silent) {
-		final NotificationChannel channel = new NotificationChannel(channel_id, name, NotificationManager.IMPORTANCE_HIGH/* Allow heads-up (by default) */);
-		if (silent) channel.setSound(null, null);
-		else channel.setSound(getDefaultSound(), new AudioAttributes.Builder().setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-				.setUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_INSTANT).build());
-		channel.enableLights(true);
-		channel.setLightColor(LIGHT_COLOR);
-		return channel;
-	}
-
-	@RequiresApi(O) private NotificationChannel cloneChannel(final NotificationChannel channel, final String id, final String new_name) {
-		final NotificationChannel clone = new NotificationChannel(id, new_name, channel.getImportance());
-		clone.setGroup(channel.getGroup());
-		clone.setDescription(channel.getDescription());
-		clone.setLockscreenVisibility(channel.getLockscreenVisibility());
-		clone.setSound(Optional.ofNullable(channel.getSound()).orElse(getDefaultSound()), channel.getAudioAttributes());
-		clone.setBypassDnd(channel.canBypassDnd());
-		clone.setLightColor(channel.getLightColor());
-		clone.setShowBadge(channel.canShowBadge());
-		clone.setVibrationPattern(channel.getVibrationPattern());
-		return clone;
-	}
-
-	@Nullable private Uri getDefaultSound() {	// Before targeting O, WeChat actually plays sound by itself (not via Notification).
-		return mWeChatTargetingO ? Settings.System.DEFAULT_NOTIFICATION_URI : null;
-	}
-
-	private boolean isWeChatTargeting26OrAbove() {
-		try {
-			return getPackageManager().getApplicationInfo(WECHAT_PACKAGE, PackageManager.GET_UNINSTALLED_PACKAGES).targetSdkVersion >= O;
-		} catch (final PackageManager.NameNotFoundException e) {
-			return false;
-		}
-	}
-
-	private void modifyNotification(final int id, final ModifyNotification... modifies) {
-		if (hasArchivedNotifications(id)) {
-			Notification n = getArchivedNotification(id);
-			for (ModifyNotification modify : modifies) modify.modify(n);
-			Log.d(TAG, "recast " + id + " " + n.extras.getCharSequence(Notification.EXTRA_TITLE));
-			recastNotification(id, n);
-		} else {
-			Log.d(TAG, "can not recast " + id + ", so cancel it");
-			cancelNotification(id);
 		}
 	}
 }

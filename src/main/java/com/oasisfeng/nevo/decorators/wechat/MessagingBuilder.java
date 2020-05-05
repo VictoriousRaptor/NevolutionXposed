@@ -57,6 +57,7 @@ import com.oasisfeng.nevo.xposed.R;
 import static com.oasisfeng.nevo.decorators.wechat.WeChatMessage.SENDER_MESSAGE_SEPARATOR;
 import static com.oasisfeng.nevo.sdk.NevoDecoratorService.TEMPLATE_BIG_PICTURE;
 import static com.oasisfeng.nevo.sdk.NevoDecoratorService.TEMPLATE_MESSAGING;
+import static com.oasisfeng.nevo.sdk.NevoDecoratorService.LocalDecorator.setActions;
 
 
 /**
@@ -208,7 +209,7 @@ class MessagingBuilder {
 			final Action.Builder zoom_action = new Action.Builder(null, actionZoom, PendingIntent.getBroadcast(mContext, 0, intent.setPackage(mContext.getPackageName()), FLAG_UPDATE_CURRENT));
 			actions.add(zoom_action.build());
 		}
-		WeChatDecorator.setActions(n, actions.toArray(new Action[actions.size()]));
+		setActions(n, actions.toArray(new Action[actions.size()]));
 		return messaging;
 	}
 
