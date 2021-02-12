@@ -20,41 +20,23 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.SharedPreferences;
-import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.drawable.Icon;
 import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Message;
-import android.os.Parcelable;
-import android.os.Process;
-import android.preference.PreferenceManager;
 import android.provider.Settings;
-import android.service.notification.StatusBarNotification;
 import android.util.Log;
-import android.widget.RemoteViews;
 
-import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import androidx.annotation.ColorInt;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
-import androidx.annotation.StringRes;
 import androidx.core.app.NotificationCompat.MessagingStyle;
 import androidx.core.graphics.drawable.IconCompat;
 
@@ -62,9 +44,6 @@ import static android.os.Build.VERSION.SDK_INT;
 import static android.os.Build.VERSION_CODES.N;
 import static android.os.Build.VERSION_CODES.O;
 import static android.os.Build.VERSION_CODES.P;
-import static android.service.notification.NotificationListenerService.REASON_APP_CANCEL;
-import static android.service.notification.NotificationListenerService.REASON_CANCEL;
-import static android.service.notification.NotificationListenerService.REASON_CHANNEL_BANNED;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -118,48 +97,6 @@ public class WeChatDecorator extends NevoDecoratorService {
 
 	private static long now() { return System.currentTimeMillis(); }
 
-	// 诊断回调
-	private static interface Diagnose { void diagnose(final XC_LoadPackage.LoadPackageParam loadPackageParam, final ClassLoader loader, final Class target); }
-
-	// 诊断钩子
-	private static void hookForDiagnose(final XC_LoadPackage.LoadPackageParam loadPackageParam, final String targetClassName, final Diagnose diagnose) {
-		final List<ClassLoader> loaders = new ArrayList<>();
-		final AtomicReference<Class> targetRef = new AtomicReference<>();
-		Class clazz = android.app.Notification.Builder.class;
-		Log.d(TAG, "hookForDiagnose clazz " + clazz);
-		XposedHelpers.findAndHookMethod(clazz, "setLargeIcon", Icon.class, new XC_MethodHook() {
-			@Override
-			protected void afterHookedMethod(MethodHookParam param) {
-				if (targetRef.get() != null) return;
-				// Log.d(TAG, "method " + param.method);
-				for (ClassLoader loader : loaders) {
-					// Log.d(TAG, "loader " + loader);
-					try {
-						Class target = XposedHelpers.findClass(targetClassName, loader);
-						if (target == null) {
-							Log.d(TAG, "cannot find " + targetClassName + " with " + loader);
-							continue;
-						}
-						Log.d(TAG, "target " + target);
-						// Class ni = XposedHelpers.findClass("com.tencent.mm.booter.notification.NotificationItem", loader);
-						targetRef.set(target);
-						if (diagnose != null) diagnose.diagnose(loadPackageParam, loader, target);
-					} catch (Exception ex) { Log.d(TAG, "find " + targetClassName + " failed with " + loader); }
-				}
-			}
-		});
-		clazz = ClassLoader.class; // 
-		// Log.d(TAG, "clazz " + clazz);
-		XposedBridge.hookAllConstructors(clazz, new XC_MethodHook() {
-			@Override
-			protected void afterHookedMethod(MethodHookParam param) {
-				ClassLoader cl = (ClassLoader)param.thisObject;
-				// Log.d(TAG, "ClassLoader " + cl);
-				loaders.add(cl);
-			}
-		});
-	}
-
 	@Override public LocalDecorator createLocalDecorator(String packageName) {
 		return new Local(this.prefKey);
 	}
@@ -168,10 +105,9 @@ public class WeChatDecorator extends NevoDecoratorService {
 		public Local(String prefKey) {
 			super(prefKey);
 		}
+
+		private final HookForFileOutputStream hffos = new HookForFileOutputStream();
 		
-		private String mPath;
-		private long mCreated, mClosed;
-	
 		/**
 		 * 
 		 * Created by Oasis on 2018-11-30.
@@ -181,95 +117,8 @@ public class WeChatDecorator extends NevoDecoratorService {
 		 * @param loadPackageParam
 		 */
 		@Override public void hook(XC_LoadPackage.LoadPackageParam loadPackageParam) {
-			// 图片预览
-			Class<?> clazz = java.io.FileOutputStream.class;
-			XposedHelpers.findAndHookConstructor(clazz, String.class, boolean.class, new XC_MethodHook() {
-				@Override
-				protected void beforeHookedMethod(MethodHookParam param) {
-					String path = (String)param.args[0];
-					if (path == null || !path.contains("/image2/")) return;
-					long created = now();
-					XposedHelpers.setAdditionalInstanceField(param.thisObject, "path", path);
-					XposedHelpers.setAdditionalInstanceField(param.thisObject, "created", created);
-					if (BuildConfig.DEBUG) Log.d(TAG, created + " " + path);
-				}
-			});
-			XposedHelpers.findAndHookMethod(clazz, "close", new XC_MethodHook() {
-				@Override
-				protected void afterHookedMethod(MethodHookParam param) {
-					String path = (String)XposedHelpers.getAdditionalInstanceField(param.thisObject, "path");
-					if (path == null) return;
-					long created = (Long)XposedHelpers.getAdditionalInstanceField(param.thisObject, "created");
-					long closed = now();
-					if (BuildConfig.DEBUG) Log.d(TAG, created + "=>" + closed + " " + path);
-					synchronized (this) {
-						mPath = path;
-						mCreated = created;
-						mClosed = closed;
-					}
-				}
-			});
-		}
-
-		// 抓android.support.v4.app.s$c::c(android.graphics.Bitmap) <- android.support.v4.app.NotificationCompat$Builder::setLargeIcon
-		private void hookSetLargeIcon(final XC_LoadPackage.LoadPackageParam loadPackageParam, ClassLoader loader, Class target) {
-			for (java.lang.reflect.Method method : target.getDeclaredMethods()) {
-				Class[] types = method.getParameterTypes();
-				if (types.length != 1 || !android.graphics.Bitmap.class.equals(types[0])) continue;
-				XposedBridge.hookMethod(method, new XC_MethodHook() {
-					@Override
-					protected void afterHookedMethod(MethodHookParam param) {
-						Log.d(TAG, param.method + " " + param.args[0]);
-						Object stack = XposedHelpers.getAdditionalInstanceField(param.args[0], "stack");
-						if (stack instanceof Exception) Log.d(TAG, "stack", (Exception)stack);
-					}
-				});
-				XposedBridge.hookAllConstructors(android.graphics.Bitmap.class, new XC_MethodHook() {
-					@Override
-					protected void afterHookedMethod(MethodHookParam param) {
-						XposedHelpers.setAdditionalInstanceField(param.thisObject, "stack", new Exception());
-					}
-				});
-			}
-		}
-
-		// 抓com.tencent.mm.booter.notification.c::a(NotificationItem)
-		private void hookNotificationItem(final XC_LoadPackage.LoadPackageParam loadPackageParam, ClassLoader loader, Class target) {
-			for (java.lang.reflect.Method method : target.getDeclaredMethods()) {
-				Class[] types = method.getParameterTypes();
-				if (types.length == 0/* || !android.graphics.Bitmap.class.equals(types[0])*/) continue;
-				Log.d(TAG, "method " + method);
-				XposedBridge.hookMethod(method, new XC_MethodHook() {
-					@Override
-					protected void afterHookedMethod(MethodHookParam param) {
-						for (Object arg : param.args) Log.d(TAG, param.method + " " + arg);
-					}
-				});
-			}
-		}
-
-		// 抓com.tencent.mm.sdk.platformtools.am::dispatchMessage(android.os.Message)
-		private void hookDispatchMessage(final XC_LoadPackage.LoadPackageParam loadPackageParam, ClassLoader loader, Class target) {
-			XposedHelpers.findAndHookMethod(target, "dispatchMessage", Message.class, new XC_MethodHook() {
-				@Override
-				protected void afterHookedMethod(MethodHookParam param) {
-					Message msg = (Message)param.args[0];
-					Bundle data = msg.getData();
-					// Log.d(TAG, "data " + data);
-					int msgType = data.getInt("notification.show.message.type", -1);
-					// Log.d(TAG, "msgType " + msgType);
-					if (msgType == -1) return;
-					Log.d(TAG, param.method.getName() + " " + data);
-					// for (java.lang.reflect.Field field : ni.getDeclaredFields()) {
-					// 	try {
-					// 		field.setAccessible(true);
-					// 		Log.d(TAG, "ni " + field.getName() + " " + field.getType() + " " + field.get(param.args[0]));
-					// 	} catch (IllegalAccessException ex0) {
-					// 		Log.d(TAG, "ni error " + field.getName() + " " + field.getType() + " ");
-					// 	}
-					// }
-				}
-			});
+			hffos.hook(loadPackageParam);
+			DiagnoseForLargeIcon.hook(loadPackageParam);
 		}
 
 		private MessagingBuilder mMessagingBuilder;
@@ -360,13 +209,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 				String person = content.substring(0, sep);
 				String msg = content.substring(sep + WeChatMessage.SENDER_MESSAGE_SEPARATOR.length());
 				if (BuildConfig.DEBUG) Log.d(TAG, person + "|" + msg);
-				if ("[图片]".equals(msg) && mPath != null && mClosed - now() < 1000) {
-					synchronized (this) {
-						if (BuildConfig.DEBUG) Log.d(TAG, "putString " + mPath);
-						extras.putString(EXTRA_PICTURE_PATH, mPath); // 保存图片地址
-						mPath = null;
-					}
-				}
+				hffos.inject(msg, extras);
 			}
 
 			if (type == Conversation.TYPE_UNKNOWN) type = WeChatMessage.guessConversationType(content, n.tickerText.toString().trim(), title);

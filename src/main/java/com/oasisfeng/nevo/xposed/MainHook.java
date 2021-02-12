@@ -235,7 +235,9 @@ public class MainHook implements IXposedHookLoadPackage {
 						NevoDecoratorService.setAppContext(context);
 						LocalDecorator wechat = MainHook.this.wechat.getLocalDecorator("com.tencent.mm"); // TODO
 						wechat.onCreate(pref);
-						if (!wechat.isDisabled() && (wechat instanceof HookSupport)) ((HookSupport)wechat).hook(loadPackageParam); // TODO 没法用onCreate(XSharedPreferences)实现动态配置，需要搞定
+						if (!wechat.isDisabled() && (wechat instanceof HookSupport)) {
+							((HookSupport)wechat).hook(loadPackageParam); // TODO 没法用onCreate(XSharedPreferences)实现动态配置，需要搞定
+						}
 					}
 				}
 			});
