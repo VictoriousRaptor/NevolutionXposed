@@ -6,7 +6,6 @@ import android.util.Log;
 import java.io.File;
 import java.io.FileDescriptor;
 
-
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;

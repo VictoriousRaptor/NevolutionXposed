@@ -26,6 +26,7 @@ import android.graphics.drawable.Icon;
 import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build.VERSION_CODES;
 import android.provider.Settings;
 import android.util.Log;
 
@@ -41,9 +42,6 @@ import androidx.core.app.NotificationCompat.MessagingStyle;
 import androidx.core.graphics.drawable.IconCompat;
 
 import static android.os.Build.VERSION.SDK_INT;
-import static android.os.Build.VERSION_CODES.N;
-import static android.os.Build.VERSION_CODES.O;
-import static android.os.Build.VERSION_CODES.P;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -117,8 +115,9 @@ public class WeChatDecorator extends NevoDecoratorService {
 		 * @param loadPackageParam
 		 */
 		@Override public void hook(XC_LoadPackage.LoadPackageParam loadPackageParam) {
-			hffos.hook(loadPackageParam);
-			DiagnoseForLargeIcon.hook(loadPackageParam);
+			// hffos.hook(loadPackageParam);
+			// DiagnoseForLargeIcon.hook(loadPackageParam);
+			HookForAuto.hook(loadPackageParam);
 		}
 
 		private MessagingBuilder mMessagingBuilder;
@@ -158,7 +157,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 			if (title != (title = EmojiTranslator.translate(title))) extras.putCharSequence(Notification.EXTRA_TITLE, title);
 			n.color = PRIMARY_COLOR;        // Tint the small icon
 
-			String channel_id = SDK_INT >= O ? n.getChannelId() : null;
+			String channel_id = SDK_INT >= VERSION_CODES.O ? n.getChannelId() : null;
 			if (CHANNEL_MISC.equals(channel_id)) return Decorating.Unprocessed;	// Misc. notifications on Android 8+.
 			
 			final CharSequence text = extras.getCharSequence(Notification.EXTRA_TEXT);
@@ -182,7 +181,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 				if (CHANNEL_MISC.equals(channel_id)) {	// Misc. notifications on Android 8+.
 					return Decorating.Unprocessed;
 				} else if (n.tickerText == null) {		// Legacy misc. notifications.
-					if (SDK_INT >= O && channel_id == null) setChannelId(n, CHANNEL_MISC);
+					if (SDK_INT >= VERSION_CODES.O && channel_id == null) setChannelId(n, CHANNEL_MISC);
 					Matcher matcher = pattern.matcher(content);
 					if (BuildConfig.DEBUG) Log.d(TAG, "matcher " + matcher.matches());
 					if (matcher.matches()) {
@@ -214,7 +213,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 
 			if (type == Conversation.TYPE_UNKNOWN) type = WeChatMessage.guessConversationType(content, n.tickerText.toString().trim(), title);
 			final boolean is_group_chat = Conversation.isGroupChat(type);
-			if (SDK_INT >= O) {
+			if (SDK_INT >= VERSION_CODES.O) {
 				if (extras.containsKey(KEY_SILENT_REVIVAL)) {
 					setGroup(n, "nevo.group.auto");	// Special group name to let Nevolution auto-group it as if not yet grouped. (To be standardized in SDK)
 					setGroupAlertBehavior(n, Notification.GROUP_ALERT_SUMMARY);		// This trick makes notification silent
@@ -253,7 +252,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 			MessagingBuilder.flatIntoExtras(messaging, extras);
 			extras.putString(Notification.EXTRA_TEMPLATE, TEMPLATE_MESSAGING);
 
-			if (SDK_INT >= N && extras.getCharSequenceArray(Notification.EXTRA_REMOTE_INPUT_HISTORY) != null)
+			if (SDK_INT >= VERSION_CODES.N && extras.getCharSequenceArray(Notification.EXTRA_REMOTE_INPUT_HISTORY) != null)
 				n.flags |= Notification.FLAG_ONLY_ALERT_ONCE;		// No more alert for direct-replied notification.
 
 			// 维护NotificationChannel
@@ -289,14 +288,14 @@ public class WeChatDecorator extends NevoDecoratorService {
 			});
 		}
 
-		@RequiresApi(O) private NotificationChannel migrate(NotificationManager nm, final String old_id, final String new_id, final String new_name, final boolean silent) {
+		@RequiresApi(VERSION_CODES.O) private NotificationChannel migrate(NotificationManager nm, final String old_id, final String new_id, final String new_name, final boolean silent) {
 			final NotificationChannel channel_message = nm.getNotificationChannel(old_id);
 			nm.deleteNotificationChannel(old_id);
 			if (channel_message != null) return cloneChannel(channel_message, new_id, new_name);
 			else return makeChannel(new_id, new_name, silent);
 		}
 
-		@RequiresApi(O) private NotificationChannel makeChannel(final String channel_id, final String name, final boolean silent) {
+		@RequiresApi(VERSION_CODES.O) private NotificationChannel makeChannel(final String channel_id, final String name, final boolean silent) {
 			final NotificationChannel channel = new NotificationChannel(channel_id, name, NotificationManager.IMPORTANCE_HIGH/* Allow heads-up (by default) */);
 			if (silent) channel.setSound(null, null);
 			else channel.setSound(getDefaultSound(), new AudioAttributes.Builder().setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
@@ -306,7 +305,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 			return channel;
 		}
 
-		@RequiresApi(O) private NotificationChannel cloneChannel(final NotificationChannel channel, final String id, final String new_name) {
+		@RequiresApi(VERSION_CODES.O) private NotificationChannel cloneChannel(final NotificationChannel channel, final String id, final String new_name) {
 			final NotificationChannel clone = new NotificationChannel(id, new_name, channel.getImportance());
 			clone.setGroup(channel.getGroup());
 			clone.setDescription(channel.getDescription());
@@ -319,13 +318,13 @@ public class WeChatDecorator extends NevoDecoratorService {
 			return clone;
 		}
 
-		@Nullable private Uri getDefaultSound() {	// Before targeting O, WeChat actually plays sound by itself (not via Notification).
+		@Nullable private Uri getDefaultSound() {	// Before targeting VERSION_CODES.O, WeChat actually plays sound by itself (not via Notification).
 			return mWeChatTargetingO ? Settings.System.DEFAULT_NOTIFICATION_URI : null;
 		}
 
 		private boolean isWeChatTargeting26OrAbove() {
 			try {
-				return getPackageManager().getApplicationInfo(WECHAT_PACKAGE, PackageManager.GET_UNINSTALLED_PACKAGES).targetSdkVersion >= O;
+				return getPackageManager().getApplicationInfo(WECHAT_PACKAGE, PackageManager.GET_UNINSTALLED_PACKAGES).targetSdkVersion >= VERSION_CODES.O;
 			} catch (final PackageManager.NameNotFoundException e) {
 				return false;
 			}
