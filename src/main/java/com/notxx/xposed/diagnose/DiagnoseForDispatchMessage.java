@@ -1,4 +1,4 @@
-package com.oasisfeng.nevo.decorators.wechat;
+package com.notxx.xposed.diagnose;
 
 import android.os.Bundle;
 import android.os.Message;
@@ -8,6 +8,8 @@ import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
+
+import com.notxx.xposed.Diagnose;
 
 public class DiagnoseForDispatchMessage {
 	static final String TAG = "WeChatDecorator.Diagnose";

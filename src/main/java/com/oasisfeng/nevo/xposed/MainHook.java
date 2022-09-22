@@ -46,7 +46,6 @@ public class MainHook implements IXposedHookLoadPackage {
 
 	private final XSharedPreferences pref = DeviceSharedPreferences.get(BuildConfig.APPLICATION_ID);
 	private final NevoDecoratorService wechat = new com.oasisfeng.nevo.decorators.wechat.WeChatDecorator();
-	private final NevoDecoratorService media = new com.oasisfeng.nevo.decorators.media.MediaDecorator();
 
 	private static void inspect(XC_LoadPackage.LoadPackageParam loadPackageParam, String className, String... methods) {
 		try {
@@ -158,10 +157,6 @@ public class MainHook implements IXposedHookLoadPackage {
 				}
 			});
 		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("ContextImpl hook failed"); }
-		try {
-			SystemUIDecorator media = this.media.getSystemUIDecorator();
-			if ((media instanceof HookSupport)) { ((HookSupport)media).hook(loadPackageParam); }
-		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log(this.media + " hook failed"); }
 		/* try {
 			HookSupport fix = new com.notxx.notification.MIUIBetaFixXposed();
 			fix.hook(loadPackageParam);
@@ -170,9 +165,6 @@ public class MainHook implements IXposedHookLoadPackage {
 	
 	private void onCreate(Context context) {
 		NevoDecoratorService.setAppContext(context);
-
-		SystemUIDecorator media = this.media.getSystemUIDecorator();
-		media.onCreate(pref);
 	}
 
 	private void onNotificationPosted(StatusBarNotification sbn) {
@@ -181,14 +173,9 @@ public class MainHook implements IXposedHookLoadPackage {
 			return;
 		}
 		XposedHelpers.setAdditionalInstanceField(sbn, "applied", true);
-
-		SystemUIDecorator media = this.media.getSystemUIDecorator();
-		if (!media.isDisabled()) media.onNotificationPosted(sbn);
 	}
 
 	private void onNotificationRemoved(StatusBarNotification sbn, int reason) {
-		SystemUIDecorator media = this.media.getSystemUIDecorator();
-		if (!media.isDisabled()) media.onNotificationRemoved(sbn, reason);
 	}
 
 	private void hookWeChat(XC_LoadPackage.LoadPackageParam loadPackageParam) {

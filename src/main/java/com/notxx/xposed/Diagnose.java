@@ -1,4 +1,4 @@
-package com.oasisfeng.nevo.decorators.wechat;
+package com.notxx.xposed;
 
 import android.graphics.drawable.Icon;
 import android.util.Log;
