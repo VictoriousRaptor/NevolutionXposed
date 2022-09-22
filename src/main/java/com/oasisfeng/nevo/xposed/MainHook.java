@@ -46,7 +46,6 @@ public class MainHook implements IXposedHookLoadPackage {
 
 	private final XSharedPreferences pref = DeviceSharedPreferences.get(BuildConfig.APPLICATION_ID);
 	private final NevoDecoratorService wechat = new com.oasisfeng.nevo.decorators.wechat.WeChatDecorator();
-	private final NevoDecoratorService miui = new com.oasisfeng.nevo.decorators.MIUIDecorator();
 	private final NevoDecoratorService media = new com.oasisfeng.nevo.decorators.media.MediaDecorator();
 
 	private static void inspect(XC_LoadPackage.LoadPackageParam loadPackageParam, String className, String... methods) {
@@ -172,9 +171,7 @@ public class MainHook implements IXposedHookLoadPackage {
 	private void onCreate(Context context) {
 		NevoDecoratorService.setAppContext(context);
 
-		SystemUIDecorator miui = this.miui.getSystemUIDecorator(),
-				media = this.media.getSystemUIDecorator();
-		miui.onCreate(pref);
+		SystemUIDecorator media = this.media.getSystemUIDecorator();
 		media.onCreate(pref);
 	}
 
@@ -185,24 +182,12 @@ public class MainHook implements IXposedHookLoadPackage {
 		}
 		XposedHelpers.setAdditionalInstanceField(sbn, "applied", true);
 
-		SystemUIDecorator miui = this.miui.getSystemUIDecorator(),
-				media = this.media.getSystemUIDecorator();
-		switch (sbn.getPackageName()) {
-			case "com.xiaomi.xmsf":
-			if (!miui.isDisabled()) miui.onNotificationPosted(sbn);
-			break;
-		}
+		SystemUIDecorator media = this.media.getSystemUIDecorator();
 		if (!media.isDisabled()) media.onNotificationPosted(sbn);
 	}
 
 	private void onNotificationRemoved(StatusBarNotification sbn, int reason) {
-		SystemUIDecorator miui = this.miui.getSystemUIDecorator(),
-				media = this.media.getSystemUIDecorator();
-		switch (sbn.getPackageName()) {
-			case "com.xiaomi.xmsf":
-			if (!miui.isDisabled()) miui.onNotificationRemoved(sbn, reason);
-			break;
-		}
+		SystemUIDecorator media = this.media.getSystemUIDecorator();
 		if (!media.isDisabled()) media.onNotificationRemoved(sbn, reason);
 	}
 

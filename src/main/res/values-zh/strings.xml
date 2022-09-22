@@ -16,7 +16,7 @@
   -->
 
 <resources>
-	<string name="app_name">女娲石Xposed</string>
+	<string name="app_name">女娲石-Xposed</string>
 
 	<string name="decorator_enabled">启用此插件</string>
 	<string name="decorator_fix_enabled">启用此补丁</string>

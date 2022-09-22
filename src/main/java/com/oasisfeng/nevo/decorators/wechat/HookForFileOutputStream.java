@@ -15,6 +15,8 @@ import com.oasisfeng.nevo.xposed.BuildConfig;
 
 public class HookForFileOutputStream {
 	private static final String TAG = "WeChatDecorator.FileOutputStream";
+	private static final String PATH = "path";
+	private static final String CREATED = "created";
 
 	private static long now() { return System.currentTimeMillis(); }
 
@@ -34,92 +36,36 @@ public class HookForFileOutputStream {
 	public void hook(XC_LoadPackage.LoadPackageParam loadPackageParam) {
 		// 图片预览
 		Class<?> clazz = java.io.FileOutputStream.class;
-		XposedHelpers.findAndHookConstructor(clazz, File.class, new XC_MethodHook() {
-			@Override
-			protected void beforeHookedMethod(MethodHookParam param) {
-				File file = (File)param.args[0];
-				if (file == null) return;
-				String path = file.getAbsolutePath();
-				if (path == null) return;
-				long created = now();
-				if (!path.contains("/image2/")) {
-					Log.d(TAG, created + " (file) ? " + path);
-					return;
-				}
-				XposedHelpers.setAdditionalInstanceField(param.thisObject, "path", path);
-				XposedHelpers.setAdditionalInstanceField(param.thisObject, "created", created);
-				if (BuildConfig.DEBUG) Log.d(TAG, created + " " + path);
-			}
-		});
-		XposedHelpers.findAndHookConstructor(clazz, File.class, boolean.class, new XC_MethodHook() {
-			@Override
-			protected void beforeHookedMethod(MethodHookParam param) {
-				File file = (File)param.args[0];
-				if (file == null) return;
-				String path = file.getAbsolutePath();
-				if (path == null) return;
-				long created = now();
-				if (!path.contains("/image2/")) {
-					Log.d(TAG, created + " (file, append) ? " + path);
-					return;
-				}
-				XposedHelpers.setAdditionalInstanceField(param.thisObject, "path", path);
-				XposedHelpers.setAdditionalInstanceField(param.thisObject, "created", created);
-				if (BuildConfig.DEBUG) Log.d(TAG, created + " " + path);
-			}
-		});
-		XposedHelpers.findAndHookConstructor(clazz, FileDescriptor.class, new XC_MethodHook() {
-			@Override
-			protected void beforeHookedMethod(MethodHookParam param) {
-				FileDescriptor fd = (FileDescriptor)param.args[0];
-				if (fd == null) return;
-				long created = now();
-				Log.d(TAG, created + " (fd) ? " + fd);
-			}
-		});
-		XposedHelpers.findAndHookConstructor(clazz, String.class, new XC_MethodHook() {
-			@Override
-			protected void beforeHookedMethod(MethodHookParam param) {
-				String path = (String)param.args[0];
-				if (path == null) return;
-				long created = now();
-				if (!path.contains("/image2/")) {
-					Log.d(TAG, created + " (name) ? " + path);
-					return;
-				}
-				XposedHelpers.setAdditionalInstanceField(param.thisObject, "path", path);
-				XposedHelpers.setAdditionalInstanceField(param.thisObject, "created", created);
-				if (BuildConfig.DEBUG) Log.d(TAG, created + " " + path);
-			}
-		});
+		// FileOutputStream(String name, boolean append)
 		XposedHelpers.findAndHookConstructor(clazz, String.class, boolean.class, new XC_MethodHook() {
 			@Override
 			protected void beforeHookedMethod(MethodHookParam param) {
 				String path = (String)param.args[0];
 				if (path == null) return;
 				long created = now();
+				if (path.endsWith("/test_writable") || path.endsWith("/xlogtest_writable")) return;
 				if (!path.contains("/image2/")) {
-					Log.d(TAG, created + " (name, append) ? " + path);
+					// XLog.d(TAG, created + " (file, append) ? " + path);
 					return;
 				}
-				XposedHelpers.setAdditionalInstanceField(param.thisObject, "path", path);
-				XposedHelpers.setAdditionalInstanceField(param.thisObject, "created", created);
-				if (BuildConfig.DEBUG) Log.d(TAG, created + " " + path);
+				XposedHelpers.setAdditionalInstanceField(param.thisObject, PATH, path);
+				XposedHelpers.setAdditionalInstanceField(param.thisObject, CREATED, created);
+				XLog.d(TAG, created + " " + path);
 			}
 		});
 		XposedHelpers.findAndHookMethod(clazz, "close", new XC_MethodHook() {
 			@Override
 			protected void afterHookedMethod(MethodHookParam param) {
-				String path = (String)XposedHelpers.getAdditionalInstanceField(param.thisObject, "path");
+				String path = (String)XposedHelpers.getAdditionalInstanceField(param.thisObject, PATH);
 				if (path == null) return;
-				long created = (Long)XposedHelpers.getAdditionalInstanceField(param.thisObject, "created");
+				long created = (Long)XposedHelpers.getAdditionalInstanceField(param.thisObject, CREATED);
 				long closed = now();
 				if (BuildConfig.DEBUG) Log.d(TAG, created + "=>" + closed + " " + path);
-				// synchronized (this) {
-				// 	mPath = path;
-				// 	mCreated = created;
-				// 	mClosed = closed;
-				// }
+				synchronized (this) {
+					mPath = path;
+					mCreated = created;
+					mClosed = closed;
+				}
 			}
 		});
 	}

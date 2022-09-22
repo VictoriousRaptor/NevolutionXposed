@@ -1,5 +1,5 @@
 <resources>
-	<string name="app_name">NevolutionXposed</string>
+	<string name="app_name">Nevolution-Xposed</string>
 
 	<string name="decorator_enabled">Enable this Decorator</string>
 	<string name="decorator_fix_enabled">Enable this Fix</string>

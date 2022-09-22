@@ -200,12 +200,12 @@ class WeChatMessage {
 		final String s = (sender != null) ? sender.toString() : null;
 		final Person person = SELF.equals(sender) ? null : conversation.isGroupChat() ? conversation.getGroupParticipant(s, s) : conversation.sender().build();
 		Message r = new Message(EmojiTranslator.translate(text), time, person);
-		if (picturePath != null) {
-			if (BuildConfig.DEBUG) Log.d(TAG, "message.setData " + picturePath);
-			File file = new File(picturePath);
-			if (file.exists()) r.setData("image/jpeg", Uri.fromFile(file));
-			if (BuildConfig.DEBUG) Log.d(TAG, file.exists() + " toMessage " + r.getDataUri());
-		}
+		// if (picturePath != null) {
+		// 	// XLog.d(TAG, "message.setData " + picturePath);
+		// 	File file = new File(picturePath);
+		// 	if (file.exists()) r.setData("image/jpeg", Uri.fromFile(file));
+		// 	// XLog.d(TAG, file.exists() + " toMessage " + r.getDataUri());
+		// }
 		return r;
 	}
 

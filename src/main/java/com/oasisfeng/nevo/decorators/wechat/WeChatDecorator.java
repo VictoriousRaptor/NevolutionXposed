@@ -22,6 +22,8 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.drawable.Icon;
 import android.media.AudioAttributes;
 import android.net.Uri;
@@ -30,6 +32,7 @@ import android.os.Build.VERSION_CODES;
 import android.provider.Settings;
 import android.util.Log;
 
+import java.io.File;
 import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
@@ -42,6 +45,9 @@ import androidx.core.app.NotificationCompat.MessagingStyle;
 import androidx.core.graphics.drawable.IconCompat;
 
 import static android.os.Build.VERSION.SDK_INT;
+import static android.os.Build.VERSION_CODES.N;
+import static android.os.Build.VERSION_CODES.O;
+import static android.os.Build.VERSION_CODES.P;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -115,7 +121,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 		 * @param loadPackageParam
 		 */
 		@Override public void hook(XC_LoadPackage.LoadPackageParam loadPackageParam) {
-			// hffos.hook(loadPackageParam);
+			hffos.hook(loadPackageParam);
 			// DiagnoseForLargeIcon.hook(loadPackageParam);
 			HookForAuto.hook(loadPackageParam);
 		}
@@ -250,7 +256,17 @@ public class WeChatDecorator extends NevoDecoratorService {
 
 			if (is_group_chat) messaging.setGroupConversation(true).setConversationTitle(title);
 			MessagingBuilder.flatIntoExtras(messaging, extras);
-			extras.putString(Notification.EXTRA_TEMPLATE, TEMPLATE_MESSAGING);
+
+			if (extras.containsKey(EXTRA_PICTURE_PATH)) {
+				String path = extras.getString(EXTRA_PICTURE_PATH);
+				final BitmapFactory.Options options = new BitmapFactory.Options();
+				options.inPreferredConfig = SDK_INT >= O ? Bitmap.Config.HARDWARE : Bitmap.Config.ARGB_8888;
+				extras.putString(Notification.EXTRA_TEMPLATE, TEMPLATE_BIG_PICTURE);
+				extras.putParcelable(Notification.EXTRA_PICTURE, BitmapFactory.decodeFile(path, options));
+				// extras.putCharSequence(Notification.EXTRA_SUMMARY_TEXT, text);
+			} else {
+				extras.putString(Notification.EXTRA_TEMPLATE, TEMPLATE_MESSAGING);
+			}
 
 			if (SDK_INT >= VERSION_CODES.N && extras.getCharSequenceArray(Notification.EXTRA_REMOTE_INPUT_HISTORY) != null)
 				n.flags |= Notification.FLAG_ONLY_ALERT_ONCE;		// No more alert for direct-replied notification.
