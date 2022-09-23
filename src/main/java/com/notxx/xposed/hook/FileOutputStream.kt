@@ -1,4 +1,4 @@
-package com.oasisfeng.nevo.decorators.wechat
+package com.notxx.xposed.hook
 
 import android.os.Bundle
 
@@ -7,9 +7,14 @@ import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 
-import com.oasisfeng.nevo.xposed.BuildConfig;
+import com.oasisfeng.nevo.decorators.wechat.WeChatDecorator.EXTRA_PICTURE_PATH
+import com.oasisfeng.nevo.xposed.BuildConfig
 
-class HookForFileOutputStream {
+import com.notxx.xposed.XLog
+import com.notxx.xposed.hookConstructor
+import com.notxx.xposed.hookMethod
+
+class FileOutputStream {
 	companion object {
 		val TAG = "WeChatDecorator.FileOutputStream"
 		val PATH = "path"
@@ -26,7 +31,7 @@ class HookForFileOutputStream {
 		if ("[图片]" == msg && mPath != null && closed != null && closed - now() < 1000) {
 			synchronized (this) {
 				if (BuildConfig.DEBUG) XLog.d(TAG, "putString $mPath")
-				extras.putString(WeChatDecorator.EXTRA_PICTURE_PATH, mPath) // 保存图片地址
+				extras.putString(EXTRA_PICTURE_PATH, mPath) // 保存图片地址
 				mPath = null
 				mClosed = null
 			}
