@@ -100,6 +100,7 @@ fun Class<*>.newInstance(parameterTypes: Array<Class<*>>, vararg args: Any): Any
 	XposedHelpers.newInstance(this, parameterTypes, *args)
 
 fun ClassLoader.findClass(className: String): Class<*> = XposedHelpers.findClass(className, this)
+fun ClassLoader.findClassIfExists(className: String): Class<*>? = XposedHelpers.findClassIfExists(className, this)
 
 inline operator fun <reified T> Any.get(name: String): T = getField(name, T::class.java)
 

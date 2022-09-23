@@ -7,7 +7,6 @@ import java.io.File;
 import de.robv.android.xposed.XSharedPreferences;
 
 import com.oasisfeng.nevo.xposed.BuildConfig;
-import com.oasisfeng.nevo.decorators.wechat.XLog;
 
 public class DeviceSharedPreferences {
 	public static XSharedPreferences get(String packageName) {

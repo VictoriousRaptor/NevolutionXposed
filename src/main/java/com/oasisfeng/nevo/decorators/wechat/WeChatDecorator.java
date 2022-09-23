@@ -114,6 +114,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 		}
 
 		private final FileOutputStream hffos = new FileOutputStream();
+		private final Hook forAuto = new com.notxx.xposed.hook.Auto();
 		
 		/**
 		 * 
@@ -126,7 +127,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 		@Override public void hook(XC_LoadPackage.LoadPackageParam loadPackageParam) {
 			hffos.hook(loadPackageParam);
 			// DiagnoseForLargeIcon.hook(loadPackageParam);
-			HookForAuto.hook(loadPackageParam);
+			forAuto.hook(loadPackageParam);
 		}
 
 		private MessagingBuilder mMessagingBuilder;

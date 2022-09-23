@@ -2,19 +2,18 @@ package com.notxx.xposed.hook
 
 import android.os.Bundle
 
-import de.robv.android.xposed.XC_MethodHook
-import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 
 import com.oasisfeng.nevo.decorators.wechat.WeChatDecorator.EXTRA_PICTURE_PATH
 import com.oasisfeng.nevo.xposed.BuildConfig
 
-import com.notxx.xposed.XLog
 import com.notxx.xposed.hookConstructor
 import com.notxx.xposed.hookMethod
+import com.notxx.xposed.Hook
+import com.notxx.xposed.XLog
 
-class FileOutputStream {
+class FileOutputStream : Hook {
 	companion object {
 		val TAG = "WeChatDecorator.FileOutputStream"
 		val PATH = "path"
@@ -38,7 +37,7 @@ class FileOutputStream {
 		}
 	}
 
-	fun hook(loadPackageParam: XC_LoadPackage.LoadPackageParam) {
+	override fun hook(loadPackageParam: XC_LoadPackage.LoadPackageParam) {
 		val clazz = java.io.FileOutputStream::class.java
 		// FileOutputStream(String name, boolean append)
 		clazz.hookConstructor(String::class.java, java.lang.Boolean.TYPE) {
