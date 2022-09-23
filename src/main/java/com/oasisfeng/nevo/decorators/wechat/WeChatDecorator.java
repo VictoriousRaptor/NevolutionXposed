@@ -218,7 +218,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 				String person = content.substring(0, sep);
 				String msg = content.substring(sep + WeChatMessage.SENDER_MESSAGE_SEPARATOR.length());
 				if (BuildConfig.DEBUG) Log.d(TAG, person + "|" + msg);
-				hffos.inject(msg, extras);
+				hffos.export(msg, extras);
 			}
 
 			if (type == Conversation.TYPE_UNKNOWN) type = WeChatMessage.guessConversationType(content, n.tickerText.toString().trim(), title);
@@ -251,9 +251,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 			// if (mPreferences.getBoolean(mPrefKeyWear, false)) n.flags &= ~ Notification.FLAG_LOCAL_ONLY; // TODO
 			setSortKey(n, String.valueOf(Long.MAX_VALUE - n.when + (is_group_chat ? GROUP_CHAT_SORT_KEY_SHIFT : 0))); // Place group chat below other messages
 
-			MessagingStyle messaging = mMessagingBuilder.buildFromExtender(conversation, id, n, title, getArchivedNotifications(id)); // build message from android auto
-			if (messaging == null)	// EXTRA_TEXT will be written in buildFromArchive()
-				messaging = mMessagingBuilder.buildFromArchive(conversation, n, title, getArchivedNotifications(id));
+			MessagingStyle messaging = mMessagingBuilder.buildFromExtender(conversation, n, title, getArchivedNotifications(id)); // build message from android auto
 			if (messaging == null) return Decorating.Unprocessed;
 			final List<MessagingStyle.Message> messages = messaging.getMessages();
 			if (messages.isEmpty()) return Decorating.Unprocessed;

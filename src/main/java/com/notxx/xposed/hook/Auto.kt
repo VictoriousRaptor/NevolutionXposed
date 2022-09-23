@@ -16,7 +16,7 @@ class Auto : Hook {
 	private fun hookUiModeManager(cl: ClassLoader) {
 		val clazz = cl.findClassIfExists("android.app.UiModeManager")
 		if (clazz == null) return
-		XLog.d(TAG, "hookUiModeManager $cl")
+		// XLog.d(TAG, "hookUiModeManager $cl")
 		clazz.hookMethod("getCurrentModeType") {
 			replace { 3 }
 		}
@@ -25,7 +25,7 @@ class Auto : Hook {
 	private fun hookApplicationPackageManager(cl: ClassLoader) {
 		val clazz = cl.findClassIfExists("android.app.ApplicationPackageManager")
 		if (clazz == null) return
-		XLog.d(TAG, "hookApplicationPackageManager $cl")
+		// XLog.d(TAG, "hookApplicationPackageManager $cl")
 		clazz.hookMethod("getPackageInfo", String::class.java, Integer.TYPE) {
 			doBefore {
 				val pkg = args[0] as String

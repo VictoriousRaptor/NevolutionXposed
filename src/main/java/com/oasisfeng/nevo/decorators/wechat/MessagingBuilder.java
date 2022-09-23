@@ -162,9 +162,11 @@ class MessagingBuilder {
 	 * 从车载扩展信息重建会话
 	 */
 	@Nullable MessagingStyle buildFromExtender(final Conversation conversation, final int id, final Notification n, final CharSequence title, final List<Notification> archive) {
+		final MessagingStyle messaging = buildFromArchive(conversation, n, title, archive);
+		
 		final Notification.CarExtender extender = new Notification.CarExtender(n);
 		final CarExtender.UnreadConversation convs = extender.getUnreadConversation();
-		if (convs == null) return null;
+		if (convs == null) return messaging;
 		final long latest_timestamp = convs.getLatestTimestamp();
 		if (latest_timestamp > 0) n.when = conversation.timestamp = latest_timestamp;
 
@@ -179,10 +181,6 @@ class MessagingBuilder {
 				Log.e(TAG, "Error parsing reply intent.", e);
 			}
 		}
-
-		final MessagingStyle messaging = new MessagingStyle(mUserSelf);
-		final Message[] messages = WeChatMessage.buildFromCarConversation(conversation, convs, archive);
-		for (final Message message : messages) messaging.addMessage(message);
 
 		final PendingIntent on_read = convs.getReadPendingIntent();
 		if (on_read != null) mMarkReadPendingIntents.put(id, on_read);	// Mapped by evolved key,

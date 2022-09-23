@@ -189,23 +189,13 @@ class WeChatMessage {
 				if (conversation.isGroupChat() && title_as_sender) sender = SELF;		// WeChat incorrectly use group chat title as sender for self-sent messages.
 			} else sender = null;		// Not really the sender name, revert the parsing result.
 		}
-		return toMessage(conversation, from_self ? SELF : sender, text, 0, (notification != null) ? notification.extras.getString(WeChatDecorator.EXTRA_PICTURE_PATH) : null);
+		return toMessage(conversation, from_self ? SELF : sender, text, 0);
 	}
 
 	private static Message toMessage(final Conversation conversation, final @Nullable CharSequence sender, final CharSequence text, final long time) {
-		return toMessage(conversation, sender, text, time, null);
-	}
-
-	private static Message toMessage(final Conversation conversation, final @Nullable CharSequence sender, final CharSequence text, final long time, final String picturePath) {
 		final String s = (sender != null) ? sender.toString() : null;
 		final Person person = SELF.equals(sender) ? null : conversation.isGroupChat() ? conversation.getGroupParticipant(s, s) : conversation.sender().build();
 		Message r = new Message(EmojiTranslator.translate(text), time, person);
-		// if (picturePath != null) {
-		// 	// XLog.d(TAG, "message.setData " + picturePath);
-		// 	File file = new File(picturePath);
-		// 	if (file.exists()) r.setData("image/jpeg", Uri.fromFile(file));
-		// 	// XLog.d(TAG, file.exists() + " toMessage " + r.getDataUri());
-		// }
 		return r;
 	}
 

@@ -25,7 +25,7 @@ class FileOutputStream : Hook {
 	private var mCreated: Long? = null
 	private var mClosed: Long? = null
 
-	fun inject(msg: String, extras: Bundle) {
+	fun export(msg: String, extras: Bundle) {
 		val closed = mClosed;
 		if ("[图片]" == msg && mPath != null && closed != null && closed - now() < 1000) {
 			synchronized (this) {
