@@ -153,7 +153,11 @@ class MessagingBuilder {
 		final MessagingStyle messaging = new MessagingStyle(mUserSelf);
 		final boolean sender_inline = num_lines_with_colon == textArray.size();
 		for (int i = 0, size = textArray.size(); i < size; i++)	{		// All lines have colon in text
-			messaging.addMessage(buildMessage(conversation, textArray.keyAt(i), tickerArray.valueAt(i), textArray.valueAt(i), sender_inline ? null : title.toString()));
+			messaging.addMessage(buildMessage(conversation,
+					textArray.keyAt(i),
+					tickerArray.valueAt(i),
+					textArray.valueAt(i),
+					sender_inline ? null : title.toString()));
 		}
 		return messaging;
 	}
@@ -161,7 +165,8 @@ class MessagingBuilder {
 	/**
 	 * 从车载扩展信息重建会话
 	 */
-	@Nullable MessagingStyle buildFromExtender(final Conversation conversation, final int id, final Notification n, final CharSequence title, final List<Notification> archive) {
+	@Nullable MessagingStyle buildFromExtender(final Conversation conversation, final Notification n, final CharSequence title, final List<Notification> archive) {
+		final int id = conversation.id;
 		final MessagingStyle messaging = buildFromArchive(conversation, n, title, archive);
 		
 		final Notification.CarExtender extender = new Notification.CarExtender(n);
@@ -211,8 +216,12 @@ class MessagingBuilder {
 		return messaging;
 	}
 
-	private static Message buildMessage(final Conversation conversation, final long when, final @Nullable CharSequence ticker,
-										final CharSequence text, @Nullable String sender) {
+	private static Message buildMessage(
+		final Conversation conversation,
+		final long when,
+		final @Nullable CharSequence ticker,
+		final CharSequence text,
+		@Nullable String sender) {
 		CharSequence actual_text = text;
 		if (sender == null) {
 			sender = extractSenderFromText(text);

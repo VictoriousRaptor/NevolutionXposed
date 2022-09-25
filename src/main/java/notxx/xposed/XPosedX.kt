@@ -1,4 +1,4 @@
-package com.notxx.xposed
+package notxx.xposed
 
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge

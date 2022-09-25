@@ -1,4 +1,4 @@
-package com.notxx.xposed.hook
+package notxx.xposed.hook
 
 import android.os.Bundle
 
@@ -8,10 +8,10 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage
 import com.oasisfeng.nevo.decorators.wechat.WeChatDecorator.EXTRA_PICTURE_PATH
 import com.oasisfeng.nevo.xposed.BuildConfig
 
-import com.notxx.xposed.hookConstructor
-import com.notxx.xposed.hookMethod
-import com.notxx.xposed.Hook
-import com.notxx.xposed.XLog
+import notxx.xposed.hookConstructor
+import notxx.xposed.hookMethod
+import notxx.xposed.Hook
+import notxx.xposed.XLog
 
 class FileOutputStream : Hook {
 	companion object {

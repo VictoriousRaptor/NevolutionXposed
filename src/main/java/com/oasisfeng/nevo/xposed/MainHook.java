@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import com.notxx.xposed.DeviceSharedPreferences;
+import notxx.xposed.DeviceSharedPreferences;
 
 import com.oasisfeng.nevo.sdk.HookSupport;
 import com.oasisfeng.nevo.sdk.NevoDecoratorService;
@@ -158,7 +158,7 @@ public class MainHook implements IXposedHookLoadPackage {
 			});
 		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("ContextImpl hook failed"); }
 		/* try {
-			HookSupport fix = new com.notxx.notification.MIUIBetaFixXposed();
+			HookSupport fix = new notxx.notification.MIUIBetaFixXposed();
 			fix.hook(loadPackageParam);
 		} catch (XposedHelpers.ClassNotFoundError e) { XposedBridge.log("fix hook failed"); } */
 	}

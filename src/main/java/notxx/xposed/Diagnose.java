@@ -1,4 +1,4 @@
-package com.notxx.xposed;
+package notxx.xposed;
 
 import android.graphics.drawable.Icon;
 import android.util.Log;

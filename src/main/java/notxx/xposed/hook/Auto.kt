@@ -1,12 +1,12 @@
-package com.notxx.xposed.hook
+package notxx.xposed.hook
 
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 
-import com.notxx.xposed.hookAllConstructor
-import com.notxx.xposed.findClassIfExists
-import com.notxx.xposed.hookMethod
-import com.notxx.xposed.Hook
-import com.notxx.xposed.XLog
+import notxx.xposed.hookAllConstructor
+import notxx.xposed.findClassIfExists
+import notxx.xposed.hookMethod
+import notxx.xposed.Hook
+import notxx.xposed.XLog
 
 class Auto : Hook {
 	companion object {

@@ -62,8 +62,8 @@ import com.oasisfeng.nevo.sdk.NevoDecoratorService;
 import com.oasisfeng.nevo.xposed.BuildConfig;
 import com.oasisfeng.nevo.xposed.R;
 
-import com.notxx.xposed.Hook;
-import com.notxx.xposed.hook.FileOutputStream;
+import notxx.xposed.Hook;
+import notxx.xposed.hook.FileOutputStream;
 
 /**
  * Bring state-of-art notification experience to WeChat.
@@ -114,7 +114,7 @@ public class WeChatDecorator extends NevoDecoratorService {
 		}
 
 		private final FileOutputStream hffos = new FileOutputStream();
-		private final Hook forAuto = new com.notxx.xposed.hook.Auto();
+		private final Hook forAuto = new notxx.xposed.hook.Auto();
 		
 		/**
 		 * 
