@@ -15,9 +15,9 @@ import notxx.xposed.XLog
 
 class FileOutputStream : Hook {
 	companion object {
-		val TAG = "WeChatDecorator.FileOutputStream"
-		val PATH = "path"
-		val CREATED = "created"
+		private const val TAG = "Hook.FileOutputStream"
+		private const val PATH = "path"
+		private const val CREATED = "created"
 		fun now() = System.currentTimeMillis()
 	}
 
@@ -47,7 +47,7 @@ class FileOutputStream : Hook {
 				val created = now()
 				if (path.endsWith("/test_writable") || path.endsWith("/xlogtest_writable")) return@doBefore
 				if (!path.contains("/image2/")) {
-					XLog.d(TAG, "$created (file, append) ? $path")
+					// XLog.d(TAG, "$created (file, append) ? $path")
 					return@doBefore
 				}
 				XposedHelpers.setAdditionalInstanceField(thisObject, PATH, path)

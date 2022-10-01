@@ -144,4 +144,7 @@ fun <T> Any.setField(name: String, value: T?, fieldClass: Class<T>) {
 	}
 }
 
-private fun findField(clazz: Class<*>, fieldName: String) = XposedHelpers.findField(clazz, fieldName)
+fun findField(clazz: Class<*>, fieldName: String) = XposedHelpers.findField(clazz, fieldName)
+
+fun <T> Any.getAdditional(key: String): T? = XposedHelpers.getAdditionalInstanceField(this, key) as T?
+fun <T> Any.setAdditional(key: String, value: T?): T? = XposedHelpers.setAdditionalInstanceField(this, key, value) as T?

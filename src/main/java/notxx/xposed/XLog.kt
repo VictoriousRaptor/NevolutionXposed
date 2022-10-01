@@ -8,11 +8,11 @@ import java.lang.reflect.Method
 /** @author yufz */
 object XLog {
 	@JvmStatic fun d(tag: String, message: String?) {
-		XposedBridge.log("[SmallIcon]  $tag  $message")
+		XposedBridge.log("[NevolutionXposed]  $tag  $message")
 	}
 
 	fun i(tag: String, message: String?) {
-		XposedBridge.log("[SmallIcon]  $tag  $message")
+		XposedBridge.log("[NevolutionXposed]  $tag  $message")
 	}
 
 	fun e(tag: String, message: String?, throwable: Throwable?) {

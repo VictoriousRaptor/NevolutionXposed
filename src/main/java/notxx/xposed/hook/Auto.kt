@@ -6,6 +6,7 @@ import notxx.xposed.hookAllConstructor
 import notxx.xposed.findClassIfExists
 import notxx.xposed.hookMethod
 import notxx.xposed.Hook
+import notxx.xposed.PACKAGE_WECHAT
 import notxx.xposed.XLog
 
 class Auto : Hook {
@@ -31,7 +32,7 @@ class Auto : Hook {
 				val pkg = args[0] as String
 				if (pkg == "com.google.android.projection.gearhead") {
 					this.setResult(null)
-				} else if (pkg != "com.tencent.mm") {
+				} else if (pkg != PACKAGE_WECHAT) {
 					// XLog.d(TAG, "getPackageInfo($pkg)")
 				}
 			}
