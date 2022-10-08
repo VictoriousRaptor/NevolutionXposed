@@ -5,7 +5,6 @@ import android.app.Notification.CarExtender.UnreadConversation
 import android.app.Notification.MessagingStyle
 import android.app.Notification.MessagingStyle.Message
 import android.app.Notification.EXTRA_CONVERSATION_TITLE
-import android.app.Notification.EXTRA_IS_GROUP_CONVERSATION
 import android.app.Notification.EXTRA_MESSAGES
 import android.app.Notification.EXTRA_SELF_DISPLAY_NAME
 import android.app.Notification.EXTRA_TEMPLATE
@@ -22,22 +21,10 @@ import android.util.LruCache
 
 import java.util.SortedMap
 
-import notxx.xposed.getAdditional
-import notxx.xposed.setAdditional
-
-private const val TAG = "Messages"
+private const val TAG = "WeChat.Messages"
 private const val SENDER_SEPARATOR = ": "
 
 private const val THREAD_MAX = 10
-
-private const val KEY_TEXT = "text";
-private const val KEY_TIMESTAMP = "time";
-private const val KEY_SENDER = "sender";
-private const val KEY_SENDER_PERSON = "sender_person";
-private const val KEY_DATA_MIME_TYPE = "type";
-private const val KEY_DATA_URI= "uri";
-private const val KEY_EXTRAS_BUNDLE = "extras";
-private const val KEY_USERNAME = "key_username";
 
 class Messages {
 	companion object {
@@ -111,7 +98,7 @@ class Messages {
 			// Log.d(TAG, "unread: ${n.unread} type: ${n.type} title: $title tickerText: $tickerText text: $text")
 		}
 		// Log.d(TAG, "title: $title tickerText: $tickerText text: $text")
-		Log.d(TAG, "unread: ${n.number} type: ${n.type} person: ${n.person} content: ${n.content}")
+		// Log.d(TAG, "unread: ${n.number} type: ${n.type} person: ${n.person} content: ${n.content}")
 	}
 
 	private fun find_person(key: String,
@@ -153,11 +140,12 @@ class Messages {
 	}
 
 	fun process(id:Int, n: Notification, c: UnreadConversation) {
+		// Log.d(TAG, "n.extras ${n.extras}")
 		// TODO 如果消息发太快会造成 UnreadConversation 中未读消息来的比 Notification 快，需要更狠的活来修复
 		val messages = c.messages.dropLast(1) // 总消息减一个
-		Log.d(TAG, "messages.size ${messages.size}")
+		// Log.d(TAG, "messages.size ${messages.size}")
 		val last_line = c.messages.last().toLine() // 总消息最后一个
-		Log.d(TAG, "last_line $last_line")
+		// Log.d(TAG, "last_line $last_line")
 		process_internal(n)
 		// Log.d(TAG, "c.latestTimestamp ${c.latestTimestamp}")
 		val timestamp = c.latestTimestamp
@@ -219,9 +207,9 @@ class Messages {
 				crumb.content = last_line.second
 			}
 			// Log.d(TAG, "add(...) $last_line ${crumb.senderName} ${crumb.content}")
+			// Log.d(TAG, "counts@1: ${messages.size}, ${thread.size}")
+			while (thread.size > (messageCount + 1)) thread.removeAt(0)
 		}
-		// Log.d(TAG, "counts@1: ${messages.size}, ${thread.size}")
-		while (thread.size > THREAD_MAX) thread.removeAt(0)
 		// Log.d(TAG, "counts@2: ${messages.size}, ${thread.size}")
 		export_conversation(n.extras, participantPerson, thread)
 		n.text = n.tickerText // TODO
@@ -233,8 +221,8 @@ class Crumb {
 	var title: CharSequence?
 	var tickerText: CharSequence?
 	var text: CharSequence?
-	var pair: Pair<String?, String>?
-	// var person: CharSequence?
+	// var pair: Pair<String?, String>?
+	var remoteInputHistory: Array<CharSequence>?
 	var content: CharSequence?
 	var isRecall = false
 
@@ -251,7 +239,8 @@ class Crumb {
 		this.title = n.title
 		this.tickerText = n.tickerText
 		this.text = n.text
-		this.pair = null
+		// this.pair = null
+		this.remoteInputHistory = n.remoteInputHistory
 		this.senderName = n.person
 		this.content = n.content
 		// this.message = null
@@ -263,7 +252,8 @@ class Crumb {
 		this.title = null
 		this.tickerText = null
 		this.text = null
-		this.pair = pair
+		// this.pair = pair
+		this.remoteInputHistory = null
 		this.senderName = pair.first ?: name
 		this.content = pair.second
 		// this.message = null
@@ -271,7 +261,7 @@ class Crumb {
 
 	fun text() = if (isRecall) { "[撤回] $content" } else { content }
 
-	fun toBundle(): Bundle {
+	fun export(output: MutableList<Parcelable>) {
 		val bundle = Bundle()
 		bundle.putCharSequence(KEY_TEXT, text())
 		bundle.putLong(KEY_TIMESTAMP, timestamp)		// Must be included even for 0
@@ -282,7 +272,14 @@ class Crumb {
 		if (dataUri != null) bundle.putParcelable(KEY_DATA_URI, dataUri)
 		// if (SDK_INT >= O && !extras.isEmpty()) bundle.putBundle(KEY_EXTRAS_BUNDLE, extras)
 		//if (this.isRemoteInputHistory()) bundle.putBoolean(KEY_REMOTE_INPUT_HISTORY, this.isRemoteInputHistory());
-		return bundle
+		output.add(bundle)
+		remoteInputHistory?.forEach { text ->
+			val bundle = Bundle()
+			bundle.putCharSequence(KEY_TEXT, text)
+			bundle.putLong(KEY_TIMESTAMP, timestamp)		// Must be included even for 0
+			bundle.putCharSequence(KEY_SENDER, null)
+			output.add(bundle)
+		}
 	}
 }
 
@@ -293,30 +290,6 @@ enum class MessageType {
 	MESSAGE,
 	RECALL,
 }
-
-// Notification extensions
-var Notification.text: CharSequence?
-	get() = this.extras.getCharSequence(Notification.EXTRA_TEXT)
-	set(value) = this.extras.putCharSequence(Notification.EXTRA_TEXT, value)
-var Notification.title: CharSequence?
-	get() = this.extras.getCharSequence(Notification.EXTRA_TITLE)
-	set(value) = this.extras.putCharSequence(Notification.EXTRA_TITLE, value)
-var Notification.type: MessageType?
-	get() = this.getAdditional<MessageType>("type")
-	set(value) { this.setAdditional<MessageType>("type", value) }
-var Notification.person: CharSequence?
-	get() = this.getAdditional<CharSequence>("person")
-	set(value) { this.setAdditional<CharSequence>("person", value) }
-var Notification.content: CharSequence?
-	get() = this.getAdditional<CharSequence>("content")
-	set(value) { this.setAdditional<CharSequence>("content", value) }
-var Notification.messages: List<Message>?
-	get() = this.getAdditional<List<Message>>("messages")
-	set(value) { this.setAdditional<List<Message>>("messages", value) }
-// Bundle extensions
-var Bundle.isGroupConversation: Boolean
-	get() = this.getBoolean(EXTRA_IS_GROUP_CONVERSATION, false)
-	set(value) = this.putBoolean(EXTRA_IS_GROUP_CONVERSATION, value)
 
 // CharSequence extensions
 fun CharSequence.startsWith(needle1: String, needle2: String): Boolean {
@@ -350,4 +323,10 @@ fun String.toLine(): Pair<String?, String> {
 	}
 }
 
-fun List<Crumb>.toParcelableArray() = this.map() { it.toBundle() as Parcelable }.toTypedArray()
+fun List<Crumb>.toParcelableArray(/*userSelf: Person*/): Array<Parcelable> {
+	val result = mutableListOf<Parcelable>()
+	for (crumb in this) {
+		crumb.export(/*userSelf, */result)
+	}
+	return result.toTypedArray()
+}

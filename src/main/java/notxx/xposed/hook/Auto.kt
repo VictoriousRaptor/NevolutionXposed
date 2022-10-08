@@ -2,7 +2,7 @@ package notxx.xposed.hook
 
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 
-import notxx.xposed.hookAllConstructor
+import notxx.xposed.hookAllConstructors
 import notxx.xposed.findClassIfExists
 import notxx.xposed.hookMethod
 import notxx.xposed.Hook
@@ -42,7 +42,7 @@ class Auto : Hook {
 	override fun hook(loadPackageParam: XC_LoadPackage.LoadPackageParam) {
 		hookUiModeManager(loadPackageParam.classLoader)
 		hookApplicationPackageManager(loadPackageParam.classLoader)
-		ClassLoader::class.java.hookAllConstructor() {
+		ClassLoader::class.java.hookAllConstructors() {
 			doAfter {
 				val cl = thisObject as ClassLoader
 				hookUiModeManager(cl)

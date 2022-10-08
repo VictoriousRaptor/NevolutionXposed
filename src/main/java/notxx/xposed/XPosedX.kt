@@ -32,7 +32,7 @@ fun Class<*>.hookMethod(methodName: String, vararg parameterTypes: Class<*>, cal
 fun Class<*>.hookConstructor(vararg parameterTypes: Class<*>, callback: HookCallback) =
 	XposedHelpers.findAndHookConstructor(this, *parameterTypes, MethodHook(callback))
 
-fun Class<*>.hookAllConstructor(callback: HookCallback) =
+fun Class<*>.hookAllConstructors(callback: HookCallback) =
 	XposedBridge.hookAllConstructors(this, MethodHook(callback))
 
 fun hookMethod(className: String, classLoader: ClassLoader, methodName: String, vararg parameterTypes: Class<*>, callback: HookCallback) =
@@ -122,6 +122,7 @@ fun <T> Any.getField(name: String, fieldClazz: Class<T>): T {
 		Short::class.java -> field.getShort(obj)
 		else -> field.get(obj)
 	}
+	@Suppress("UNCHECKED_CAST")
 	return value as T
 }
 
@@ -140,11 +141,13 @@ fun <T> Any.setField(name: String, value: T?, fieldClass: Class<T>) {
 		Int::class.java -> field.setInt(obj, value as Int)
 		Long::class.java -> field.setLong(obj, value as Long)
 		Short::class.java -> field.setShort(obj, value as Short)
-		else -> field.set(obj, value as T)
+		else -> @Suppress("UNCHECKED_CAST") field.set(obj, value as T)
 	}
 }
 
 fun findField(clazz: Class<*>, fieldName: String) = XposedHelpers.findField(clazz, fieldName)
 
+@Suppress("UNCHECKED_CAST")
 fun <T> Any.getAdditional(key: String): T? = XposedHelpers.getAdditionalInstanceField(this, key) as T?
+@Suppress("UNCHECKED_CAST")
 fun <T> Any.setAdditional(key: String, value: T?): T? = XposedHelpers.setAdditionalInstanceField(this, key, value) as T?

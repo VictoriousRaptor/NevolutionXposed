@@ -1,13 +1,25 @@
 package notxx.xposed
 
 import android.app.Notification
+import android.app.Notification.Action
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.os.Build.VERSION.SDK_INT
+import android.os.Build.VERSION_CODES.N
+import android.os.Build.VERSION_CODES.O
+import android.os.Build.VERSION_CODES.P
+import android.content.Context
 import android.util.Log
+import android.util.LruCache
 
+import java.util.concurrent.atomic.AtomicReference
+
+import android.app.AndroidAppHelper
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 
 import notxx.wechat.Messages
+import notxx.wechat.Proxy
+import notxx.wechat.RecastAction
 import notxx.xposed.hook.Auto as ForAuto
 import notxx.xposed.hook.FileOutputStream as ForFileOutputStream
 
@@ -19,8 +31,15 @@ object HookWeChat {
 	private val forFOS = ForFileOutputStream()
 	private val forAuto = ForAuto()
 	private val messages = Messages()
+	private val cache = LruCache<Int, Notification>(100)
+	private val contextRef = AtomicReference<Context>()
+	private var proxyRef = AtomicReference<Proxy>()
+	private val proxy: Proxy
+		get() {
+			return proxyRef.get()!!
+		}
 
-	fun cancel(id:Int) {
+	private fun cancel(id: Int) {
 		val nm = mNM
 		if (nm != null) {
 			nm.cancel(null, id)
@@ -29,7 +48,7 @@ object HookWeChat {
 		}
 	}
 
-	fun recast(id:Int, n:Notification) {
+	private fun recast(id: Int, n: Notification) {
 		val nm = mNM
 		if (nm != null) {
 			nm.notify(null, id, n)
@@ -38,20 +57,41 @@ object HookWeChat {
 		}
 	}
 
+	private fun recast(id: Int, action: RecastAction) {
+		val n = cache.get(id)
+		if (n != null) {
+			action(n)
+			Log.d(TAG, "recast $id ${n.extras.getCharSequence(Notification.EXTRA_TITLE)}")
+			recast(id, n)
+		} else {
+			Log.d(TAG, "can not recast $id, so cancel it")
+			cancel(id)
+		}
+	}
+
 	fun hook(lpparam: XC_LoadPackage.LoadPackageParam) {
 		val cl = lpparam.classLoader
-		val clazz = cl.findClassIfExists("android.app.NotificationManager")
+		var clazz = cl.findClassIfExists("android.app.NotificationManager")
 		XLog.d(TAG, "NM clazz: $clazz process: ${lpparam.processName}")
-		if (clazz != null) {
-			clazz.hookMethod("notify", String::class.java, Integer.TYPE, Notification::class.java) {
-				doBefore {
-					val nm = thisObject as NotificationManager
-					if (mNM == null) { mNM = nm }
-					val tag = args[0] as String?
-					val id = args[1] as Int
-					val n = args[2] as Notification
-					Log.d(TAG, "before apply $nm $tag $id $n process: ${lpparam.processName}")
-					apply(nm, tag, id, n)
+		clazz?.hookMethod("notify", String::class.java, Integer.TYPE, Notification::class.java) {
+			doBefore {
+				val nm = thisObject as NotificationManager
+				if (mNM == null) { mNM = nm }
+				val tag = args[0] as String?
+				val id = args[1] as Int
+				val n = args[2] as Notification
+				// Log.d(TAG, "before apply $nm $tag $id $n process: ${lpparam.processName}")
+				apply(nm, tag, id, n)
+			}
+		}
+		clazz = cl.findClassIfExists("android.app.ContextImpl")
+		XLog.d(TAG, "ContextImpl clazz: $clazz process: ${lpparam.processName}")
+		clazz?.hookAllMethods("createAppContext") {
+			doAfter {
+				val context = result as Context
+				if (contextRef.compareAndSet(null, context)) {
+					Log.d(TAG, "HookWeChat $context")
+					proxyRef.compareAndSet(null, Proxy(context, ::cancel, ::recast))
 				}
 			}
 		}
@@ -60,53 +100,38 @@ object HookWeChat {
 	}
 
 	fun apply(nm:NotificationManager, tag:String?, id:Int, n:Notification) {
+		cache.put(id, n)
 		// mWeChatTargetingO
 		// cache
+		Log.d(TAG, "channel: ${n.channelId}")
+		// emoji
+		// channel
+		n.color = PRIMARY_COLOR
+		val actions = mutableListOf<Action>()
+		// 更新会话
 		val conversation = messages.conversation(n)
 		if (conversation != null) {
 			messages.process(id, n, conversation)
+			val read = conversation.readPendingIntent
+			if (read != null) {
+				// n.deleteIntent = read
+				actions.add(proxy.buildReadAction(id, n, read))
+				val remoteInput = conversation.remoteInput
+				if (SDK_INT >= N && remoteInput != null) {
+					actions.add(proxy.buildReplyAction(id, n, conversation))
+				}
+			}
 		} else {
 			messages.process(id, n)
 		}
-		Log.d(TAG, "${n.channelId}")
-		// deleteIntent
-		val extras = n.extras
-		// val extensions = extras.getBundle("android.car.EXTENSIONS")
-		// if (extensions != null) {
-		// 	val conversation = extensions.getBundle("car_conversation")
-		// 	// Log.d(TAG, "$conversation")
-		// 	val participants = conversation?.get("participants") as? Array<String>
-		// 	if (participants != null) {
-		// 		for (participant in participants) {
-		// 			Log.d(TAG, "participant $participant")
-		// 		}
-		// 	}
-		// 	val messages = conversation?.get("messages") as? Array<android.os.Parcelable>
-		// 	if (messages != null) {
-		// 		for (message in messages) {
-		// 			Log.d(TAG, "message $message")
-		// 		}
-		// 	}
-		// 	n.deleteIntent = conversation?.get("on_read") as PendingIntent?
-		// }
-		// title
-		val title = extras.getCharSequence(Notification.EXTRA_TITLE)
-		if (title == null || title.length == 0) return
-		// emoji
-		n.color = PRIMARY_COLOR
-		// channel
-		// text
-		val text = extras.getCharSequence(Notification.EXTRA_TEXT)
-		if (text != null && text.length > 0) {
-			// [2条]...
-			// 撤回
-			// 发送者
-			// 群消息
-		}
-		// 更新会话
+		n.setActions(*actions.toTypedArray())
 		// 显示图片
 		// 显示会话
 		// 选择会话渠道
 		// 维护会话渠道
 	}
+}
+
+fun Notification.setActions(vararg actions: Notification.Action) {
+	this.set("actions", actions)
 }
