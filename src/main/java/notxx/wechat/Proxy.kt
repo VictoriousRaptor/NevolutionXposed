@@ -58,6 +58,17 @@ class Proxy {
 		// })
 	}
 
+	fun process(id:Int, n: Notification, c: UnreadConversation, actions: MutableList<Action>) {
+		val read = c.readPendingIntent
+		if (read == null) return
+		// n.deleteIntent = read
+		actions.add(buildReadAction(id, read))
+		val remoteInput = c.remoteInput
+		if (SDK_INT >= N && remoteInput != null) {
+			actions.add(buildReplyAction(id, n, c))
+		}
+	}
+
 	private fun packageContext() = packageContext(BuildConfig.APPLICATION_ID)
 
 	private fun packageContext(packageName: String): Context? {
@@ -122,7 +133,7 @@ class Proxy {
 		}
 	}
 
-	fun buildReadAction(id: Int, n: Notification, readPendingIntent: PendingIntent): Notification.Action {
+	private fun buildReadAction(id: Int, readPendingIntent: PendingIntent): Notification.Action {
 		val read = Intent(ACTION_READ)
 			.putExtra(EXTRA_READ_ACTION, readPendingIntent)
 			.setData(Uri.fromParts(SCHEME_ID, Integer.toString(id), null))
@@ -132,7 +143,7 @@ class Proxy {
 		return Action.Builder(null, "已读", proxy).build() // TODO
 	}
 
-	fun buildReplyAction(id: Int, n: Notification, conversation: UnreadConversation): Notification.Action {
+	private fun buildReplyAction(id: Int, n: Notification, conversation: UnreadConversation): Notification.Action {
 		val remoteInput = conversation.remoteInput
 		val reply = Intent(ACTION_REPLY)
 			.putExtra(EXTRA_REPLY_ACTION, conversation.replyPendingIntent)

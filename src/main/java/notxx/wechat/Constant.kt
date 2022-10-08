@@ -31,15 +31,18 @@ const val KEY_USERNAME = "key_username"
 const val SCHEME_ID = "id"
 
 // Notification extensions
-var Notification.text: CharSequence?
+var Notification.text
 	get() = this.extras.getCharSequence(EXTRA_TEXT)
 	set(value) = this.extras.putCharSequence(EXTRA_TEXT, value)
-var Notification.title: CharSequence?
+var Notification.title
 	get() = this.extras.getCharSequence(EXTRA_TITLE)
 	set(value) = this.extras.putCharSequence(EXTRA_TITLE, value)
-var Notification.remoteInputHistory: Array<CharSequence>?
+var Notification.remoteInputHistory
 	get() = this.extras.getCharSequenceArray(EXTRA_REMOTE_INPUT_HISTORY)
 	set(value) = this.extras.putCharSequenceArray(EXTRA_REMOTE_INPUT_HISTORY, value)
+var Notification.isGroupConversation
+	get() = this.extras.isGroupConversation
+	set(value) { this.extras.isGroupConversation = value }
 var Notification.type: MessageType?
 	get() = this.getAdditional<MessageType>("type")
 	set(value) { this.setAdditional<MessageType>("type", value) }
