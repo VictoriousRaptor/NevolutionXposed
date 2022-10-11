@@ -26,6 +26,8 @@ private const val SENDER_SEPARATOR = ": "
 
 private const val THREAD_MAX = 10
 
+typealias Line = Pair<String?, String>
+
 class Messages {
 	companion object {
 		private val UNREAD_REGEX = "^\\[(\\d{1,4})条\\]".toRegex()
@@ -90,7 +92,7 @@ class Messages {
 			} else if ("$title$SENDER_SEPARATOR$text" == tickerText) { // 第一条私信 or 公众号/服务号
 				// n.type = MessageType.PRIVATE_MESSAGE
 				n.person = title
-				n.content = text
+				// n.content = text
 			} else {
 				Log.d(TAG, "2?？")
 			}
@@ -113,14 +115,14 @@ class Messages {
 		return person
 	}
 
-	private fun export_conversation(extras: Bundle, participant: Person, thread: List<Crumb>) {
+	private fun export_conversation(extras: Bundle, participant: Person, thread: List<Crumb>, lines: List<Line>) {
 		@Suppress("DEPRECATION")
 		extras.putCharSequence(EXTRA_SELF_DISPLAY_NAME, participant.name)
 		// Log.d(TAG, "participantPerson $participantPerson ${participantPerson.name}")
 		if (SDK_INT >= P) extras.putParcelable(Notification.EXTRA_MESSAGING_PERSON, participant); // Not included in NotificationCompat
 		extras.putCharSequence(EXTRA_CONVERSATION_TITLE, participant.name);
 		// Log.d(TAG, "thread ${thread.size}")
-		if (!thread.isEmpty()) extras.putParcelableArray(EXTRA_MESSAGES, thread.toParcelableArray())
+		if (!thread.isEmpty()) extras.putParcelableArray(EXTRA_MESSAGES, thread.toParcelableArray(lines))
 		//if (! mHistoricMessages.isEmpty()) extras.putParcelableArray(Notification.EXTRA_HISTORIC_MESSAGES, MessagingBuilder.getBundleArrayForMessages(mHistoricMessages))
 		val first = thread.find() { crumb ->
 			crumb.senderName != participant.name
@@ -135,17 +137,39 @@ class Messages {
 		// return n.extras.getBundle("android.car.EXTENSIONS") != null
 	}
 
-	fun process(id:Int, n: Notification) {
+	fun recast(id: Int, n: Notification, c: UnreadConversation?) {
+		var thread = threadCache.get(id)
+		if (thread == null) {
+			Log.d(TAG, "$id null thread")
+			return
+		}
+		if (c == null) {
+			Log.d(TAG, "$id null conversation")
+			return
+		}
+		val lines = c.messages.map { message -> message.toLine() }
+		val crumb = thread.last()
+		val remoteInputHistory = crumb.remoteInputHistory
+		crumb.remoteInputHistory = if (remoteInputHistory != null) {
+			remoteInputHistory + n.remoteInputHistory
+		} else {
+			n.remoteInputHistory
+		}
+		Log.d(TAG, "recast(...) ${crumb.senderName} ${crumb.content}")
+		val participant = c.participant
+		val participantPerson = find_person(participant, { it?.icon == null }, {
+			Person.Builder().setIcon(n.getLargeIcon()).setName(participant).build()
+		})
+		export_conversation(n.extras, participantPerson, thread, lines)
+	}
+
+	fun process(id: Int, n: Notification) {
 		process_internal(n)
 	}
 
-	fun process(id:Int, n: Notification, c: UnreadConversation) {
+	fun process(id: Int, n: Notification, c: UnreadConversation) {
 		// Log.d(TAG, "n.extras ${n.extras}")
 		// TODO 如果消息发太快会造成 UnreadConversation 中未读消息来的比 Notification 快，需要更狠的活来修复
-		val messages = c.messages.dropLast(1) // 总消息减一个
-		// Log.d(TAG, "messages.size ${messages.size}")
-		val last_line = c.messages.last().toLine() // 总消息最后一个
-		// Log.d(TAG, "last_line $last_line")
 		process_internal(n)
 		// Log.d(TAG, "c.latestTimestamp ${c.latestTimestamp}")
 		val timestamp = c.latestTimestamp
@@ -159,27 +183,28 @@ class Messages {
 			thread = mutableListOf<Crumb>()
 			threadCache.put(id, thread)
 		}
-		val threadCount = thread.size; val messageCount = messages.size
+		val lines = c.messages.map { message -> message.toLine() }
+		val threadCount = thread.size; val lineCount = lines.size
+		// Log.d(TAG, "threadCount/lineCount ${threadCount}/${lineCount}")
 		if (n.type == MessageType.RECALL) { // 当撤回发生的时候，messages会变得很短
 			// val recaller = n.person
-			val offset = threadCount - messageCount
-			Log.d(TAG, "recall $offset $threadCount $messageCount")
-			if (threadCount < messageCount) {
+			val offset = threadCount - lineCount
+			// Log.d(TAG, "recall $offset $threadCount $lineCount")
+			if (offset < 0) {
 				thread.forEachIndexed { i, crumb ->
 					val j = i - offset
-					val line = messages[j].toLine()
-					// Log.d(TAG, "$i $j ${crumb.person} ${crumb.content} $line")
+					val line = lines[j]
+					// Log.d(TAG, "$i $j ${crumb.senderName} ${crumb.content} $line")
 					if (line.second == "[消息]" && line.first == null || line.first == participant) { // 撤回 TODO
 						// Log.d(TAG, "recall? ${line.first} $participant")
 						crumb.isRecall = true
 					}
 				}
 			} else {
-				messages.forEachIndexed { j, message ->
-					val line = message.toLine()
+				lines.forEachIndexed { j, line ->
 					val i = j + offset
 					val crumb = thread[i]
-					// Log.d(TAG, "$i $j ${crumb.person} ${crumb.content} $line")
+					// Log.d(TAG, "$i $j ${crumb.senderName} ${crumb.content} $line")
 					if (line.second == "[消息]" && line.first == null || line.first == participant) { // 撤回 TODO
 						// Log.d(TAG, "recall? ${line.first} $participant")
 						crumb.isRecall = true
@@ -189,16 +214,17 @@ class Messages {
 		}
 		// Log.d(TAG, "counts@0: $messageCount, $threadCount")
 		synchronized(thread) {
-			if (messageCount <= threadCount) return@synchronized
+			if (lineCount <= threadCount) return@synchronized
 			// 补齐历史
-			for (i in 0..(messageCount - threadCount - 1)) {
-				val line = messages[i].toLine()
+			for (i in 0..(lineCount - threadCount - 2)) {
+				val line = lines[i]
 				val crumb = Crumb(timestamp, line, participant)
 				// Log.d(TAG, "add($i, ...) $line ${crumb.senderName} ${crumb.content}")
 				thread.add(i, crumb)
 			}
 		}
 		if (n.type != MessageType.RECALL) { // 不是撤回，补齐最后一条消息
+			var last_line = lines.last()
 			var crumb = Crumb(timestamp, n)
 			thread.add(crumb) // 添加历史记录
 			// Log.d(TAG, "add(...) ${crumb.senderName} ${crumb.content}")
@@ -206,12 +232,12 @@ class Messages {
 			if (last_line.second != "[消息]") {
 				crumb.content = last_line.second
 			}
-			// Log.d(TAG, "add(...) $last_line ${crumb.senderName} ${crumb.content}")
-			// Log.d(TAG, "counts@1: ${messages.size}, ${thread.size}")
-			while (thread.size > (messageCount + 1)) thread.removeAt(0)
+			Log.d(TAG, "add(...) $last_line ${crumb.senderName} ${crumb.content}")
+			// Log.d(TAG, "counts@1: ${lines.size}, ${thread.size}")
 		}
+		while (thread.size > THREAD_MAX) thread.removeAt(0)
 		// Log.d(TAG, "counts@2: ${messages.size}, ${thread.size}")
-		export_conversation(n.extras, participantPerson, thread)
+		export_conversation(n.extras, participantPerson, thread, lines)
 		n.text = n.tickerText // TODO
 	}
 }
@@ -221,7 +247,7 @@ class Crumb {
 	var title: CharSequence?
 	var tickerText: CharSequence?
 	var text: CharSequence?
-	// var pair: Pair<String?, String>?
+	// var line: Line
 	var remoteInputHistory: Array<CharSequence>?
 	var content: CharSequence?
 	var isRecall = false
@@ -242,26 +268,26 @@ class Crumb {
 		// this.pair = null
 		this.remoteInputHistory = n.remoteInputHistory
 		this.senderName = n.person
-		this.content = n.content
+		this.content = null
 		// this.message = null
 	}
 
-	constructor(timestamp: Long, pair: Pair<String?, String>, name: CharSequence) {
+	constructor(timestamp: Long, line: Line, name: CharSequence) {
 		this.timestamp = timestamp
 		this.type = null
 		this.title = null
 		this.tickerText = null
 		this.text = null
-		// this.pair = pair
+		// this.line = line
 		this.remoteInputHistory = null
-		this.senderName = pair.first ?: name
-		this.content = pair.second
+		this.senderName = line.first
+		this.content = line.second
 		// this.message = null
 	}
 
-	fun text() = if (isRecall) { "[撤回] $content" } else { content }
+	fun text() = if (isRecall) { "↩️ $content" } else { content }
 
-	fun export(output: MutableList<Parcelable>) {
+	fun export(line: Line, output: MutableList<Parcelable>) {
 		val bundle = Bundle()
 		bundle.putCharSequence(KEY_TEXT, text())
 		bundle.putLong(KEY_TIMESTAMP, timestamp)		// Must be included even for 0
@@ -323,10 +349,13 @@ fun String.toLine(): Pair<String?, String> {
 	}
 }
 
-fun List<Crumb>.toParcelableArray(/*userSelf: Person*/): Array<Parcelable> {
+fun List<Crumb>.toParcelableArray(lines: List<Line>): Array<Parcelable> {
 	val result = mutableListOf<Parcelable>()
-	for (crumb in this) {
-		crumb.export(/*userSelf, */result)
+	val offset = this.size - lines.size
+	// Log.d(TAG, "recall $offset $threadCount $lineCount")
+	lines.forEachIndexed { i, line ->
+		val crumb = this[i + offset]
+		crumb.export(line, result)
 	}
 	return result.toTypedArray()
 }

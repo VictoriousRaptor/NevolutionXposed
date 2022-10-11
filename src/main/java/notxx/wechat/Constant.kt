@@ -52,9 +52,9 @@ var Notification.person: CharSequence?
 var Notification.content: CharSequence?
 	get() = this.getAdditional<CharSequence>("content")
 	set(value) { this.setAdditional<CharSequence>("content", value) }
-var Notification.messages: List<Message>?
-	get() = this.getAdditional<List<Message>>("messages")
-	set(value) { this.setAdditional<List<Message>>("messages", value) }
+var Notification.isRecast: Boolean?
+	get() = this.getAdditional<Boolean>("isRecast")
+	set(value) { this.setAdditional<Boolean>("isRecast", value) }
 
 // Bundle extensions
 var Bundle.isGroupConversation: Boolean

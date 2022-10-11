@@ -21,9 +21,10 @@ import notxx.wechat.Channels
 import notxx.wechat.Messages
 import notxx.wechat.Proxy
 import notxx.wechat.RecastAction
+import notxx.wechat.title
+import notxx.wechat.isRecast
 import notxx.xposed.hook.Auto as ForAuto
 import notxx.xposed.hook.FileOutputStream as ForFileOutputStream
-import notxx.wechat.title
 
 object HookWeChat {
 	private const val TAG = "HookWeChat"
@@ -57,6 +58,7 @@ object HookWeChat {
 			val n = cache.get(id)
 			if (n != null) {
 				action(n)
+				n.isRecast = true
 				Log.d(TAG, "recast $id ${n.title}")
 				nm.notify(null, id, n)
 			} else {
@@ -115,7 +117,9 @@ object HookWeChat {
 		val actions = mutableListOf<Action>()
 		// 更新会话
 		val conversation = messages.conversation(n)
-		if (conversation != null) {
+		if (n.isRecast == true) {
+			messages.recast(id, n, conversation)
+		} else if (conversation != null) {
 			messages.process(id, n, conversation)
 			proxy.process(id, n, conversation, actions)
 		} else {
